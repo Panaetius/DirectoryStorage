@@ -141,7 +141,7 @@ def test():
     p.close()
     assert p.all_ok()
 
-    print 'ok'
+    print('ok')
 
 def test_cap():
     s = sys.stdin.read()

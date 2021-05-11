@@ -3,7 +3,7 @@ import sys, getopt, os, time, string, stat, binascii, struct
 from .utils import oid2str, ConfigParser, tid2date
 
 from .formats import formats
-from Full import _tid_filename
+from .Full import _tid_filename
 
 def main():
     ver = os.environ.get('SNAPSHOT_VERSION')
@@ -47,19 +47,19 @@ def main():
     if limit_tid==current_tid:
         # No transactions since the specified time; no output
         if verbose>=0:
-            print >> sys.stderr, 'No transactions since', oid2str(limit_tid), tid2date(limit_tid)
+            print('No transactions since', oid2str(limit_tid), tid2date(limit_tid), file=sys.stderr)
         return
     if verbose>=0:
-        print >> sys.stderr, 'Newest transaction is',oid2str(current_tid), tid2date(current_tid)
+        print('Newest transaction is',oid2str(current_tid), tid2date(current_tid), file=sys.stderr)
     # Output the standard files that are always subject to change
-    print os.path.join('A',filename_munge('x.serial'))
-    print os.path.join('A',filename_munge('x.oid'))
+    print(os.path.join('A',filename_munge('x.serial')))
+    print(os.path.join('A',filename_munge('x.oid')))
     if 0:
         # Do not include the file that contains the date of last packing.
         # That would be approriate for a script called 'whatsold' that deals
         # with removing files, but not this 'whatsnew' script that deals
         # with adding files.
-        print os.path.join('A',filename_munge('x.packed'))
+        print(os.path.join('A',filename_munge('x.packed')))
     # Iterate through older transactions back to the start date
     oids = {}
     transactions = 0
@@ -70,7 +70,7 @@ def main():
         transaction_filename = os.path.join('A',filename_munge(_tid_filename(current_tid)))
         files += 1
         # Output the name of the transaction file
-        print transaction_filename
+        print(transaction_filename)
         data = open(os.path.join(path,transaction_filename)).read()
         lenu,lend,lene,leno,lenv = struct.unpack('!HHHIH',data[48:60])
         oidblock = data[60+lenu+lend+lene:60+lenu+lend+lene+leno]
@@ -82,15 +82,15 @@ def main():
                 # Output the name of the file that contains the current revision pointed for this
                 # oid, but only once per run if it is modified in multiple transactions
                 oids[oid] = 1
-                print os.path.join('A',filename_munge('o'+stroid+'.c'))
+                print(os.path.join('A',filename_munge('o'+stroid+'.c')))
                 files += 1
             # Output the name of the file that contains the object data written in this transaction
-            print os.path.join('A',filename_munge('o'+stroid+'.'+strtid))
+            print(os.path.join('A',filename_munge('o'+stroid+'.'+strtid)))
             files += 1
         # Go on to the previous transaction
         current_tid = data[24:32]
     if verbose>=1:
-        print >> sys.stderr, '%d files in %d objects in %d transactions' % (files, len(oids), transactions)
+        print('%d files in %d objects in %d transactions' % (files, len(oids), transactions), file=sys.stderr)
 
 
 

@@ -14,7 +14,7 @@ from BTrees.OIBTree import OIBTree
 
 from .utils import ConfigParserError, DirectoryStorageError
 from .utils import z64, z128, oid2str, logger, loglevel_BLATHER
-from LocalFilesystem import LocalFilesystem, LocalFilesystemTransaction, FileDoesNotExist
+from .LocalFilesystem import LocalFilesystem, LocalFilesystemTransaction, FileDoesNotExist
 
 class PosixFilesystem(LocalFilesystem):
 
@@ -446,8 +446,8 @@ class _FileStorageMarker(_StorageMarker):
 class _MinimalStorageMarker(_StorageMarker):
 
     def initstorage(self):
-        import Minimal
-        import mkds
+        from . import Minimal
+        from . import mkds
         name = 'marks-%s' % (uuid.uuid4().hex,)
         path = os.path.join(self.dir,name)
         mkds.mkds(path,'Minimal',self.fs.format,sync=0,somemd5s=0)

@@ -194,7 +194,7 @@ class BaseDirectoryStorage(BaseStorage):
             self._times.append(time.time())
             self._times = self._times[-100:]
             per_item = (self._times[-1]-self._times[0])/(len(self._times)-1)
-            print >> sys.stderr, '%.1f ms per transaction' % (1000*per_item,)
+            print('%.1f ms per transaction' % (1000*per_item,), file=sys.stderr)
 
 
     def _make_file_body(self,oid,serial,old_serial,data,undofrom=z64):
@@ -299,9 +299,9 @@ class BaseDirectoryStorage(BaseStorage):
                 thread = threading.Thread(target=self._pack_thread,args=(mydict,))
                 thread.start()
                 thread.join()
-                if mydict.has_key('exc_info'):
+                if 'exc_info' in mydict:
                     # re-raise the exception from the other thread
-                    raise mydict['exc_info'][0],mydict['exc_info'][1],mydict['exc_info'][2]
+                    raise mydict['exc_info'][0](mydict['exc_info'][1]).with_traceback(mydict['exc_info'][2])
                 else:
                     return mydict['r']
             else:

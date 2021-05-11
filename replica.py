@@ -5,22 +5,22 @@
 # This library is subject to the provisions of the
 # GNU Lesser General Public License version 2.1
 
-from __future__ import nested_scopes
+
 import sys, getopt, os, time, string, stat, binascii, hashlib, tempfile, stat, traceback
 
 try:
     import ZODB
 except ImportError:
-    print >> sys.stderr, 'Failure to import ZODB is often caused by an incorrect PYTHONPATH environment variable'
+    print('Failure to import ZODB is often caused by an incorrect PYTHONPATH environment variable', file=sys.stderr)
     raise
 
 from ZODB.POSException import POSError
 from .utils import oid2str, ConfigParser, tid2date, format_filesize, DirectoryStorageError
 from .formats import formats
-from snapshot import snapshot
-import Full
-from PosixFilesystem import PosixFilesystem
-from pipeline import pipeline
+from .snapshot import snapshot
+from . import Full
+from .PosixFilesystem import PosixFilesystem
+from .pipeline import pipeline
 
 # path in which this script lives. We assume whatsnew.py is in the same place
 if __name__=='__main__':
@@ -102,10 +102,10 @@ class replica_slave:
         cmd.append('+')
         cmd.append(self.rdir)
         if self.verbose>=2:
-            print >> sys.stderr, repr(cmd)
+            print(repr(cmd), file=sys.stderr)
         self.replica_main(cmd, self.localargs)
         if self.verbose>=0:
-            print >> sys.stderr, 'Replica complete'
+            print('Replica complete', file=sys.stderr)
 
     def replica_main(self, cmd, path):
         # resync the replica
@@ -116,13 +116,13 @@ class replica_slave:
         # local storages in a local tar file.
         self.rpc(cmd)
         if self.verbose>=1:
-            print >> sys.stderr, 'Flushing increment....'
+            print('Flushing increment....', file=sys.stderr)
         self.fs.flush_replica()
         self.fs.close()
 
     def prep_replica(self):
         if self.verbose>=1:
-            print >> sys.stderr, 'Preparing local storage....'
+            print('Preparing local storage....', file=sys.stderr)
         # Bring up the filesystem
         self.fs = PosixFilesystem(self.path)
         # Start the filesystem flushing itself
@@ -145,7 +145,7 @@ class replica_slave:
         # Get a copy of the differences between the remote and local storages
         # in a local tar file.
         if self.verbose>=1:
-            print >> sys.stderr, 'Fetching increment....'
+            print('Fetching increment....', file=sys.stderr)
         request = self.get_request()
         p = pipeline()
         tarname = os.path.join(self.path,'misc','.replica.incoming')
@@ -168,7 +168,7 @@ class replica_slave:
 
         if self.verbose>=1:
             size = os.fstat(tarfd)[stat.ST_SIZE]
-            print >> sys.stderr, 'Increment size %s, syncing....' % (format_filesize(size),)
+            print('Increment size %s, syncing....' % (format_filesize(size),), file=sys.stderr)
 
         # sync stuff to make it all durable
         os.fsync(tarfd)
@@ -250,7 +250,7 @@ class replica_master:
                     cmd.append('-q')
                 cmd.append(oid2str(old_tid))
                 if self.verbose>=2:
-                    print >> sys.stderr, repr(cmd)
+                    print(repr(cmd), file=sys.stderr)
                 os.execv(cmd[0],cmd)
 
             def cpio():
@@ -271,7 +271,7 @@ class replica_master:
             s.release()
         # Trickle the tar file back to the client
         if self.verbose>=1:
-            print >> sys.stderr, 'Transferring increment....'
+            print('Transferring increment....', file=sys.stderr)
         tf.seek(0,0)
         while 1:
             c = tf.read(1024*64)

@@ -7,7 +7,7 @@ import os, errno, time, sys, string
 
 from ZODB import POSException
 
-from BaseDirectoryStorage import BaseDirectoryStorage
+from .BaseDirectoryStorage import BaseDirectoryStorage
 
 from .utils import z64, z128, OMAGIC, oid2str, DirectoryStorageError, DirectoryStorageVersionError, FileDoesNotExist
 

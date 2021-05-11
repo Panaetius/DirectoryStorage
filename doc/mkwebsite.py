@@ -63,7 +63,7 @@ def main():
     try:
         path = sys.argv[1]
     except IndexError:
-        print "usage: mkwebsite.py website_path"
+        print("usage: mkwebsite.py website_path")
         return
     createWebSite(path)
     

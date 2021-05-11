@@ -5,21 +5,21 @@
 # This library is subject to the provisions of the
 # GNU Lesser General Public License version 2.1
 
-import os, sys, time, urllib, string, base64, socket, getopt, traceback
+import os, sys, time, urllib.request, urllib.parse, urllib.error, string, base64, socket, getopt, traceback
 
 try:
     import ZODB
 except ImportError:
-    print >> sys.stderr, 'Failure to import ZODB is often caused by an incorrect PYTHONPATH environment variable'
+    print('Failure to import ZODB is often caused by an incorrect PYTHONPATH environment variable', file=sys.stderr)
     raise
 
 from zc.lockfile import LockFile
 from ZODB.POSException import POSError
-import xmlrpclib
+import xmlrpc.client
 from .utils import DirectoryStorageError
-from Filesystem import Filesystem
+from .Filesystem import Filesystem
 
-class xmlrpclib_auth_Transport(xmlrpclib.Transport):
+class xmlrpclib_auth_Transport(xmlrpc.client.Transport):
     def __init__(self,username,password):
         self.auth = 'Basic '+string.replace(base64.encodestring('%s:%s' % (username,password)),'\012','')
 
@@ -27,9 +27,9 @@ class xmlrpclib_auth_Transport(xmlrpclib.Transport):
         connection.putheader('Authorization',self.auth)
         connection.putheader("User-Agent", 'DirectoryStorage snapshot.py tool')
 
-class URLopener(urllib.FancyURLopener):
+class URLopener(urllib.request.FancyURLopener):
     def __init__(self,name,password):
-        urllib.FancyURLopener.__init__(self,{})
+        urllib.request.FancyURLopener.__init__(self,{})
         self.name,self.password = name,password
     def prompt_user_passwd(self, host, realm):
         return self.name,self.password
@@ -77,7 +77,7 @@ def main():
                 else:
                     if verbose>=0:
                         msg = traceback.format_exception_only(sys.exc_info()[0],sys.exc_info()[1])[0].strip()
-                        print >> sys.stderr, 'Retrying snapshot.... (%s)' % msg
+                        print('Retrying snapshot.... (%s)' % msg, file=sys.stderr)
                     time.sleep(sleep_time)
             else:
                 break
@@ -137,7 +137,7 @@ class snapshot:
         # The procedure for establishing this is documented in doc/snapshot
         f = LockFile(os.path.join(self.path, 'misc/sublock'))
         if self.verbose>=0:
-            print >> sys.stderr, 'Locked snapshot mode'
+            print('Locked snapshot mode', file=sys.stderr)
         if not os.path.exists(os.path.join(self.path, 'misc/snapshot')):
             if closer is not None:
                 closer()
@@ -155,11 +155,11 @@ class snapshot:
             del os.environ['SNAPSHOT_DIRECTORY']
             del os.environ['SNAPSHOT_TIMESTAMP']
             if self.verbose>=0:
-                print >> sys.stderr, 'Unlocked snapshot mode'
+                print('Unlocked snapshot mode', file=sys.stderr)
         if self.closer is not None:
             self.closer()
             if self.verbose>=0:
-                print >> sys.stderr, 'Left snapshot mode'
+                print('Left snapshot mode', file=sys.stderr)
 
 
 def process_config_file(config,verbose,path):
@@ -170,7 +170,7 @@ def process_config_file(config,verbose,path):
         lines = open(config).readlines()
     except EnvironmentError:
         if verbose>=0:
-            print >> sys.stderr, 'failed to open %s'  % (config,)
+            print('failed to open %s'  % (config,), file=sys.stderr)
         lines = ['direct']
     for line in lines + ['last_resort_direct']:
         number += 1
@@ -182,10 +182,10 @@ def process_config_file(config,verbose,path):
             access_filename = os.path.join(os.path.split(config)[0],access)
             access_data = open(access_filename).readline()
             name,password = [ s.strip() for s in access_data.split(':')[:2] ]
-            toolkit = xmlrpclib.Server(url,transport=xmlrpclib_auth_Transport(name,password))
+            toolkit = xmlrpc.client.Server(url,transport=xmlrpclib_auth_Transport(name,password))
             try:
                 toolkit.enterSnapshot(code)
-            except xmlrpclib.Fault:
+            except xmlrpc.client.Fault:
                 pass
             except socket.error:
                 pass
@@ -193,7 +193,7 @@ def process_config_file(config,verbose,path):
                 def closer(toolkit=toolkit,code=code):
                     toolkit.leaveSnapshot(code)
                 if verbose>=0:
-                    print >> sys.stderr, 'Entered snapshot using %s'  % (url,)
+                    print('Entered snapshot using %s'  % (url,), file=sys.stderr)
                 return closer
         elif line[0] == 'nodirect':
             use_last_resort_direct = 0
@@ -209,11 +209,11 @@ def process_config_file(config,verbose,path):
                     pass
                 else:
                     if verbose>=0:
-                        print >> sys.stderr, 'Entered snapshot using direct access'
+                        print('Entered snapshot using direct access', file=sys.stderr)
                     return None
         else:
             if verbose>=0:
-                print >> sys.stderr, 'malformed line %d in %s' % (number,config)
+                print('malformed line %d in %s' % (number,config), file=sys.stderr)
             # formerly a hard error - not since 1.1.12
     return None
 

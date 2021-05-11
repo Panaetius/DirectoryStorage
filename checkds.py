@@ -44,7 +44,7 @@ def main():
     except DirectoryStorageError:
         sys.exit(traceback.format_exception_only(sys.exc_info()[0],sys.exc_info()[1])[0].strip())
     if verbose>=0:
-        print >> sys.stderr, 'done'
+        print('done', file=sys.stderr)
 
 
 def checkds(directory,verbose):
@@ -74,7 +74,7 @@ class CoreChecker(BaseChecker):
 
     def sanity(self):
         if self.verbose>=0:
-            print >> self.output, "Basic sanity-checking of the directory structure..."
+            print("Basic sanity-checking of the directory structure...", file=self.output)
         for file in ['A','config/settings','config/identity']:
             if not self.filesystem.exists(file):
                 self.panic('directory fails basic sanity test; %r is missing' % (file,))
@@ -84,7 +84,7 @@ class CoreChecker(BaseChecker):
 
     def storage(self):
         if self.verbose>=0:
-            print >> self.output, "Determine how we check the storage, then do it..."
+            print("Determine how we check the storage, then do it...", file=self.output)
         config = ConfigParser()
         config.read(self.directory+'/config/settings')
         classname = config.get('storage','classname')
@@ -97,7 +97,7 @@ class FullChecker(BaseChecker):
     def check(self,config):
         self.config = config
         self.format = self.config.get('structure','format')
-        if not formats.has_key(self.format):
+        if self.format not in formats:
             self.panic('Unknown format %r' % (self.format,))
         self.filename_munge = formats[self.format]
         self.check_roots()
@@ -108,7 +108,7 @@ class FullChecker(BaseChecker):
 
     def check_roots(self):
         if self.verbose>=0:
-            print >> self.output, 'checking root files...'
+            print('checking root files...', file=self.output)
         self.old_oid = self.read_database_file('x.oid')
         if len(self.old_oid)!=8:
             self.panic('bad length of old oid file')
@@ -132,30 +132,30 @@ class FullChecker(BaseChecker):
         root = '\0'*8
         self.stats = {}
         if self.verbose>=0:
-            print >> self.output, 'unmarking...'
+            print('unmarking...', file=self.output)
         self.mc = self.filesystem.mark_context('A/')
         if self.verbose>=0:
-            print >> self.output, 'checking all transaction files...'
+            print('checking all transaction files...', file=self.output)
         self.check_history(self.old_serial)
         if self.verbose>=0:
-            print >> self.output, 'checking all data files...'
+            print('checking all data files...', file=self.output)
         self.is_problem = 0
         self.traverse(root)
-        for k,v in self.stats.items():
+        for k,v in list(self.stats.items()):
             if self.verbose>=0:
-                print >> self.output, '%10d %s' % (v,k)
+                print('%10d %s' % (v,k), file=self.output)
         if self.is_problem:
             self.panic('problems found in data files')
 
     def problem(self,n,info):
         self.counter(n)
         if self.verbose>=-1:
-            print >> self.output, '%s: %s' % (n,info)
+            print('%s: %s' % (n,info), file=self.output)
         self.is_problem = 1
 
     def counter(self,n,info=None,size=1):
         stats = self.stats
-        stats[n] = stats.get(n,0L)+size
+        stats[n] = stats.get(n,0)+size
 
     def check_history(self,tid):
         fs = self.filesystem
@@ -230,7 +230,7 @@ class FullChecker(BaseChecker):
     def traverse(self,oid):
         todo = {oid:[]}
         max_length = 0
-        total_length = 0L
+        total_length = 0
         n = 0
         while todo:
             # The current ZODB oids assignment policy means that chosing the
@@ -245,18 +245,18 @@ class FullChecker(BaseChecker):
             n += 1
         if total_length:
             if self.verbose>=0:
-                print >> self.output, '%10d maximum referencee graph depth' % (max_length,)
-                print >> self.output, '%10.1f average reference graph depth' % (total_length/float(n),)
+                print('%10d maximum referencee graph depth' % (max_length,), file=self.output)
+                print('%10.1f average reference graph depth' % (total_length/float(n),), file=self.output)
 
     def print_route(self,route,this_oid,this_tid=None,this_class_name=None):
-        print >> sys.stderr, "Object reference chain (root oid first):"
+        print("Object reference chain (root oid first):", file=sys.stderr)
         for class_name,oid,tid in route:
-            print >> sys.stderr, "  %s\n    %s\n    tid %s" % (oid2str(oid), class_name, oid2str(tid))
-        print >> sys.stderr, "  %s" % oid2str(this_oid)
+            print("  %s\n    %s\n    tid %s" % (oid2str(oid), class_name, oid2str(tid)), file=sys.stderr)
+        print("  %s" % oid2str(this_oid), file=sys.stderr)
         if this_class_name:
-            print >> sys.stderr, "    %s" % this_class_name
+            print("    %s" % this_class_name, file=sys.stderr)
         if this_tid:
-            print >> sys.stderr, "    tid %s" % oid2str(tid)
+            print("    tid %s" % oid2str(tid), file=sys.stderr)
 
     def traverse_impl(self,oid,route):
         fs = self.filesystem

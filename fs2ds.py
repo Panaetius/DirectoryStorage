@@ -40,7 +40,7 @@ def fs2ds(fspath,dspath,verbose):
     finally:
         fs.close()
         dst.close()
-    print >> sys.stderr, 'Imported to', dspath
+    print('Imported to', dspath, file=sys.stderr)
 
 
 def usage():

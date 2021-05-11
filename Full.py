@@ -10,7 +10,7 @@ from ZODB import POSException
 from ZODB import TimeStamp
 from ZODB.ConflictResolution import ConflictResolvingStorage, ResolvedSerial
 
-from BaseDirectoryStorage import BaseDirectoryStorage
+from .BaseDirectoryStorage import BaseDirectoryStorage
 
 from .utils import z16, z64, z128, OMAGIC, TMAGIC, CMAGIC, oid2str, timestamp2tid
 from .utils import DirectoryStorageError, DirectoryStorageVersionError, FileDoesNotExist
@@ -155,8 +155,8 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
         #    once the pack is complete
 
         good_old_oids = {}
-        for refoid,soid in td.refoids.items():
-            if td.oids.has_key(refoid):
+        for refoid,soid in list(td.refoids.items()):
+            if refoid in td.oids:
                 if td.oids[refoid]:
                     # A reference to a George Bailey object written in this
                     # transaction.
@@ -180,7 +180,7 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
                     good_old_oids[refoid] = 1
 
         # Record the oid of every modified object in the transaction file
-        ob = string.join(td.oids.keys(),'')
+        ob = string.join(list(td.oids.keys()),'')
 
         u,d,e = td.u,td.d,td.e
         assert self._prev_serial<self.get_current_transaction()
@@ -284,7 +284,7 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
                     self._check_object_file(oid,prevtid,podata,self._md5_undo)
 
             if is_undoable:
-                if filter is None or filter(d):
+                if filter is None or list(filter(d)):
                     if i >= first:
                         r.append(d)
                     i += 1
@@ -373,7 +373,7 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
                 # compute a new file
                 body = self._make_file_body(oid,this_transaction,current,data[72:],undofrom=prevtid)
                 self._write_object_file(oid,this_transaction,body)
-        return oids.keys()
+        return list(oids.keys())
 
     def undo(self, transaction_id, transaction):
         return self.get_current_transaction(), self.transactionalUndo(transaction_id,transaction)
@@ -443,7 +443,7 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
                     break
             self._check_object_file(oid,tid,data,self._md5_history)
             d['size'] = len(data)-72
-            if filter is None or filter(d):
+            if filter is None or list(filter(d)):
                 history.append(d)
             tid = data[56:64]
             if tid==z64:
@@ -753,7 +753,7 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
                     time_deleted = 0
                 if time_deleted + self.delay_delete < now:
                     if pretend:
-                        print >> sys.stderr, 'packing would delay-remove %r' % (path,)
+                        print('packing would delay-remove %r' % (path,), file=sys.stderr)
                     else:
                         fs.unlink(path)
             else:
@@ -762,11 +762,11 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
                 else:
                     if mc.is_marked(path):
                         if pretend:
-                            print >> sys.stderr, 'packing would keep %r' % (path,)
+                            print('packing would keep %r' % (path,), file=sys.stderr)
                     else:
                         total += 1
                         if pretend:
-                            print >> sys.stderr, 'packing would remove %r' % (path,)
+                            print('packing would remove %r' % (path,), file=sys.stderr)
                         else:
                             if self.delay_delete>0:
                                  fs.rename(path,path+'-'+str(now)+'-deleted')

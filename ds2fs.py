@@ -5,7 +5,7 @@
 # This library is subject to the provisions of the
 # GNU Lesser General Public License version 2.1
 
-from __future__ import nested_scopes
+
 
 import sys, getopt, os, traceback
 from ZODB.FileStorage import FileStorage
@@ -54,7 +54,7 @@ def ds2fs(dspath,fspath,verbose):
     #
     fs.copyTransactionsFrom(it)
     #
-    print >> sys.stderr, 'Imported to:', fspath
+    print('Imported to:', fspath, file=sys.stderr)
 
 
 

@@ -1,4 +1,4 @@
-import DirectoryStorageToolkit
+from . import DirectoryStorageToolkit
 
 def initialize(context):
     context.registerClass(

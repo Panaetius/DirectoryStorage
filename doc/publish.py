@@ -4,7 +4,7 @@
 #
 
 from docutils import core
-import os, urllib2
+import os, urllib.request, urllib.error, urllib.parse
 
 class Error(Exception):
     pass
@@ -155,8 +155,8 @@ class SimpleLayouter(object):
     def render(self, **kw):
         kw.update(self._kw)
         template = self._template
-        for key, value in kw.items():
-            if type(value) in (str, unicode):
+        for key, value in list(kw.items()):
+            if type(value) in (str, str):
                 template = template.replace('{{%s}}' % key, value)
             elif type(value) == type([]):
                 l = []
@@ -232,9 +232,9 @@ class UrlSource(object):
 
     def getData(self):
         try:
-            f = urllib2.urlopen(self._url)
-        except urllib2.URLError:
-            raise Error, "Unknown url: %s" % self._url
+            f = urllib.request.urlopen(self._url)
+        except urllib.error.URLError:
+            raise Error("Unknown url: %s" % self._url)
         data = f.read()
         f.close()
         return data

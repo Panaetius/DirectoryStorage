@@ -1,7 +1,7 @@
 import sys, os, errno, binascii, struct
 from .utils import oid2str, ConfigParser, DirectoryStorageError, tid2date
 from .formats import formats
-from Full import _tid_filename as Full_tid_filename
+from .Full import _tid_filename as Full_tid_filename
 
 class FullSimpleIterator:
     # Most ZODB storages have an iterator() method, but the semantics of that
@@ -53,7 +53,7 @@ class FullSimpleIterator:
     def find_all_transaction_ids(self):
         self.all_transaction_ids = r = []
         if self.verbose>=0:
-            print >> sys.stderr, 'Finding all DirectoryStorage Transaction Ids.....'
+            print('Finding all DirectoryStorage Transaction Ids.....', file=sys.stderr)
         old_tid = tid = self.read('x.serial')
         while 1:
             strtid = oid2str(tid)
@@ -68,10 +68,10 @@ class FullSimpleIterator:
             old_tid = tid
             tid = data[24:32]
         if self.verbose>=0:
-            print >> sys.stderr, 'Found %d Transactions.....' % len(self.all_transaction_ids)
+            print('Found %d Transactions.....' % len(self.all_transaction_ids), file=sys.stderr)
         if self.verbose>=1:
-            print >> sys.stderr, 'Earliest transaction file is %s dated %s.....' % (binascii.b2a_hex(old_tid),tid2date(old_tid))
-            print >> sys.stderr, 'Transaction before that one is %s dated %s.....' % (binascii.b2a_hex(tid),tid2date(tid))
+            print('Earliest transaction file is %s dated %s.....' % (binascii.b2a_hex(old_tid),tid2date(old_tid)), file=sys.stderr)
+            print('Transaction before that one is %s dated %s.....' % (binascii.b2a_hex(tid),tid2date(tid)), file=sys.stderr)
 
     def read(self,database_filename):
         return open(os.path.join(self.dspath,'A',self.filename_munge(database_filename))).read()

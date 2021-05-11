@@ -10,7 +10,7 @@ from ZODB.tests import BasicStorage, \
      IteratorStorage, Corruption, RevisionStorage, PersistentStorage, \
      MTStorage, ReadOnlyStorage, RecoveryStorage
 
-from  DirectoryStorageTestBase import *
+from  .DirectoryStorageTestBase import *
 
 import DirectoryStorage.utils
 import DirectoryStorage.Filesystem
@@ -20,11 +20,11 @@ class DirectoryStorageFullTests:
     def checkRememberOid(self):
         # create an object
         oid = self._storage.new_oid()
-        assert oid=='\0\0\0\0\0\0\0\1', `oid`
+        assert oid=='\0\0\0\0\0\0\0\1', repr(oid)
         self._dostore(oid=oid)
         # create another
         oid = self._storage.new_oid()
-        assert oid=='\0\0\0\0\0\0\0\2', `oid`
+        assert oid=='\0\0\0\0\0\0\0\2', repr(oid)
         self._dostore(oid=oid)
         # reopen the storage
         fs = self._storage.filesystem.__class__(self._storage.filesystem.dirname)
@@ -32,7 +32,7 @@ class DirectoryStorageFullTests:
         self._storage = self._storage.__class__(fs)
         # check it remembered the old oids, and allocated a new one
         oid = self._storage.new_oid()
-        assert oid=='\0\0\0\0\0\0\0\3', `oid`
+        assert oid=='\0\0\0\0\0\0\0\3', repr(oid)
 
 
 class _PackableStorage(PackableStorage.PackableStorage):

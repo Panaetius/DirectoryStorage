@@ -28,7 +28,7 @@ def main():
     if len(argv)!=4:
         sys.exit(usage())
     mkds(argv[1], argv[2], argv[3])
-    print >> sys.stderr, 'created OK'
+    print('created OK', file=sys.stderr)
 
 def mkds(directory,classname,format,sync=1,somemd5s=1):
     if format=='auto':

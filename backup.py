@@ -5,7 +5,7 @@
 # This library is subject to the provisions of the
 # GNU Lesser General Public License version 2.1
 
-from __future__ import nested_scopes
+
 
 import sys, getopt, os, time, string, stat, binascii, traceback
 from DirectoryStorage.utils import oid2str, ConfigParser, format_filesize, tid2date, DirectoryStorageError
@@ -94,7 +94,7 @@ class backup:
                 try:
                     self._incremental_backup(parse_time(recent))
                 except NoPreviousBackups:
-                    print >> sys.stderr, traceback.format_exception_only(sys.exc_info()[0],sys.exc_info()[1])[0].strip()
+                    print(traceback.format_exception_only(sys.exc_info()[0],sys.exc_info()[1])[0].strip(), file=sys.stderr)
             else:
                 sys.exit('ERROR: unknown command %r' % arg)
 
@@ -117,12 +117,12 @@ class backup:
                 if line:
                     seq = max(seq,int(line[0]))
             self.seq = seq+1
-        print >> sys.stderr, 'This is backup sequence number %d' % (self.seq,)
+        print('This is backup sequence number %d' % (self.seq,), file=sys.stderr)
 
     def _full_backup(self):
         # Perform a full backup using tar
         filename = '%s/backups/%s-%s.tgz' % (self.path,self.prefix,self.seq)
-        print >> sys.stderr, 'Creating full backup %r' % (filename,)
+        print('Creating full backup %r' % (filename,), file=sys.stderr)
         tmpfilename = '%s/backups/.tmp-%s-%s.tgz' % (self.path,self.prefix,self.seq)
 
         p = pipeline()
@@ -153,7 +153,7 @@ class backup:
             os.fsync(fd)
             os.close(fd)
             self.renames.append((tmpfilename,filename))
-            print >> sys.stderr, '    full backup complete, %s' % (filesize(tmpfilename))
+            print('    full backup complete, %s' % (filesize(tmpfilename)), file=sys.stderr)
 
     def _incremental_backup(self,recent):
         # 'recent' is a timestamp. We should ignore all backups made after 'recent'
@@ -165,14 +165,14 @@ class backup:
         if tid==self.current_tid and not self.renames:
             # The most recent transaction in that backup is the same as the current most
             # recent transaction. That means there is nothing to be backed up.
-            print >> sys.stderr, "Ignoring empty incremental backup"
+            print("Ignoring empty incremental backup", file=sys.stderr)
             return
         # Use whatsnew.py to determine the names of all files modified in
         # transactions since that one, use cpio to copy them into an archive, and gzip it.
         filename = '%s/backups/%s-%s-to-%s.tgz' % (self.path,self.prefix,oldseq,self.seq)
         tmpfilename = '%s/backups/.tmp-%s-%s-to-%s.tgz' % (self.path,self.prefix,oldseq,self.seq)
         timestamp = time.strftime('%Y-%m-%d %H:%M:%S GMT', time.gmtime(timestamp))
-        print >> sys.stderr, 'Creating incremental backup %r\n    since backup %d at %s\n    which included transaction %s %s' % (filename,oldseq,timestamp,oid2str(tid),tid2date(tid))
+        print('Creating incremental backup %r\n    since backup %d at %s\n    which included transaction %s %s' % (filename,oldseq,timestamp,oid2str(tid),tid2date(tid)), file=sys.stderr)
 
         p = pipeline()
 
@@ -198,7 +198,7 @@ class backup:
             os.fsync(fd)
             os.close(fd)
             self.renames.append((tmpfilename,filename))
-            print >> sys.stderr, '    incremental backup complete, %s' % (filesize(tmpfilename))
+            print('    incremental backup complete, %s' % (filesize(tmpfilename)), file=sys.stderr)
 
 
     def find_rev(self,goal):
@@ -229,7 +229,7 @@ class backup:
                 tmpfilename,filename = self.renames.pop()
                 os.rename(tmpfilename,filename)
         else:
-            print >> sys.stderr, 'No backups needed, not writing an entry into the index file'
+            print('No backups needed, not writing an entry into the index file', file=sys.stderr)
 
     def abort(self):
         while self.renames:

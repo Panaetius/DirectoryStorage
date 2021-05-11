@@ -36,7 +36,7 @@ class DirectoryStorageTestBase(StorageTestBase.StorageTestBase):
 
     def _make_readonly(self):
         self._storage._is_read_only = 1
-        self.assert_(self._storage.isReadOnly())
+        self.assertTrue(self._storage.isReadOnly())
 
 
 

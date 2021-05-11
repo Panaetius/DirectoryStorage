@@ -3,7 +3,7 @@
 # This library is subject to the provisions of the
 # GNU Lesser General Public License version 2.1
 
-from __future__ import nested_scopes
+
 
 import os, sys, time, re, threading, queue, errno, tempfile
 from .BaseFilesystem import BaseFilesystem, BaseFilesystemTransaction, FileDoesNotExist
@@ -35,7 +35,7 @@ class LocalFilesystem(BaseFilesystem):
         self.flush_transaction_threshold = self.config.getint('journal','flush_transaction_threshold')
         self.quick_shutdown = self.config.getint('filesystem','quick_shutdown')
         self.format = self.config.get('structure','format')
-        if not formats.has_key(self.format):
+        if self.format not in formats:
             raise DirectoryStorageError('Unknown format %r' % (format,))
         self._init_munger(self.format)
         self._unflushed_timestamp = 0
@@ -539,7 +539,7 @@ class LocalFilesystemTransaction(BaseFilesystemTransaction):
     def finish(self):
         # First, sync all our files: body and inode
         # Do this in write order
-        unwritten = self.names.values()
+        unwritten = list(self.names.values())
         unwritten.sort()
         for f in unwritten:
             self.filesystem.second_half_write_file(f[1])
@@ -556,7 +556,7 @@ class LocalFilesystemTransaction(BaseFilesystemTransaction):
         # copy of all of these files, in case they have to be read
         # before the flush is complete.
         changes = {}
-        for name in self.names.keys():
+        for name in list(self.names.keys()):
             changes[name] = self.done_name
         # Dont update relocations while another thread is entering snapshot mode.
         # They need the journal to be empty, to ensure that all files are properly flushed
@@ -577,11 +577,11 @@ class LocalFilesystemTransaction(BaseFilesystemTransaction):
 
     def abort(self):
         # close any files we might still have open
-        for f in self.names.values():
+        for f in list(self.names.values()):
             self.filesystem.abort_half_write_file(f[1])
         # Should we do the rest of this work in the other thread?
         # delete the files
-        for name in self.names.keys():
+        for name in list(self.names.keys()):
             try:
                 self.filesystem.unlink(os.path.join(self.temp_name,name))
             except EnvironmentError:

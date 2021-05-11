@@ -145,7 +145,7 @@ class WindowsFilesystem(LocalFilesystem):
                                          win32con.OPEN_EXISTING, # disposition
                                          win32con.FILE_FLAG_SEQUENTIAL_SCAN, # flags/attributes
                                          None) # template.
-            except win32file.error, e:
+            except win32file.error as e:
                 if e[0] in [winerror.ERROR_FILE_NOT_FOUND,
                             winerror.ERROR_PATH_NOT_FOUND]:
                     raise FileDoesNotExist('DirectoryStorage file %r does not exist' % (filename,) )
@@ -241,7 +241,7 @@ class IncListDir:
         # looks like a sequence when used in a for loop
         while 1:
             try:
-                info = self.iter.next()
+                info = next(self.iter)
             except StopIteration:
                 raise IndexError(i)
 
@@ -324,7 +324,7 @@ class _AttributesMarker:
         path = os.path.join(self.fs.dirname, a)
         try:
             win32file.SetFileAttributes(path, win32file.FILE_ATTRIBUTE_SYSTEM)
-        except win32file.error, details:
+        except win32file.error as details:
             errno = details[0]
             if errno == winerror.ERROR_ACCESS_DENIED:
                 self.altmark[path] = 1
@@ -340,7 +340,7 @@ class _AttributesMarker:
         path = os.path.join(self.fs.dirname, a)
         try:
             win32file.SetFileAttributes(path, 0)
-        except win32file.error, details:
+        except win32file.error as details:
             errno = details[0]
             if errno == winerror.ERROR_ACCESS_DENIED:
                 self.altmark[path] = 0
@@ -358,7 +358,7 @@ class _AttributesMarker:
         except KeyError:
             try:
                 attr = win32file.GetFileAttributes(path)
-            except win32file.error, details:
+            except win32file.error as details:
                 if details[0] == winerror.ERROR_FILE_NOT_FOUND:
                     return 0
                 else:
@@ -379,7 +379,7 @@ class _AttributesMarker:
     def unmark_all(self,a):
         try:
             iter = win32file.FindFilesIterator(os.path.join(a, "*"))
-        except win32file.error, details:
+        except win32file.error as details:
             if details[0] != winerror.ERROR_PATH_NOT_FOUND:
                 raise
             return
@@ -515,8 +515,8 @@ class _FileStorageMarker(_StorageMarker):
 class _MinimalStorageMarker(_StorageMarker):
 
     def initstorage(self):
-        import Minimal
-        import mkds
+        from . import Minimal
+        from . import mkds
         name = 'marks-%s' % (uuid.uuid4().hex,)
         path = os.path.join(self.dir,name)
         mkds.mkds(path,'Minimal',self.fs.format,sync=0,somemd5s=0)
