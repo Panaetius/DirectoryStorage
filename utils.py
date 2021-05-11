@@ -3,7 +3,7 @@
 # This library is subject to the provisions of the
 # GNU Lesser General Public License version 2.1
 
-import struct, time, binascii, cPickle
+import struct, time, binascii, pickle
 
 from ZODB import POSException
 from ZODB.TimeStamp import TimeStamp
@@ -60,8 +60,8 @@ except ImportError:
     # This on Zope 2.8
     from ZODB.serialize import referencesf as ZODB_referencesf
 
-from ConfigParser import ConfigParser as BaseConfigParser
-from ConfigParser import Error as ConfigParserError
+from configparser import ConfigParser as BaseConfigParser
+from configparser import Error as ConfigParserError
 
 z16='\0'*2
 z64='\0'*8
@@ -90,7 +90,7 @@ class DirectoryStorageVersionError(POSException.Unsupported):
 
 class RecoveryError(DirectoryStorageError):
     pass
-    
+
 class FileDoesNotExist(Exception):
     # Exception raised when reading a file that does not exist
     pass
@@ -127,7 +127,7 @@ from ZODB.POSException import DanglingReferenceError
 
 # TODO disabled this assertion because it fails on Python 2.4; it and
 # the function below need to be revised for Python 2.4 compatability
-#assert cPickle.dumps((('a','b'),None),1)=='((U\x01aU\x01btNt.'
+#assert pickle.dumps((('a','b'),None),1)=='((U\x01aU\x01btNt.'
 def class_name_from_pickle(d):
     # Not a full unpickler - just check for the most common form
     # of a pickled Persistent class instance

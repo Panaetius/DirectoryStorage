@@ -1,8 +1,8 @@
 import sys, getopt, os, time, string, stat, binascii, struct
 
-from utils import oid2str, ConfigParser, tid2date
+from .utils import oid2str, ConfigParser, tid2date
 
-from formats import formats
+from .formats import formats
 from Full import _tid_filename
 
 def main():
@@ -32,7 +32,7 @@ def main():
     if config.get('storage','classname')!='Full':
         sys.exit('ERROR: this is not a Full storage')
     format = config.get('structure','format')
-    if not formats.has_key(format):
+    if not format in formats:
         sys.exit('ERROR: Unknown format %r' % (format,))
     filename_munge = formats[format]
     # First check that the transaction id are sensible
@@ -78,7 +78,7 @@ def main():
         while oidblock:
             oid,oidblock = oidblock[:8],oidblock[8:]
             stroid = oid2str(oid)
-            if not oids.has_key(oid):
+            if not oid in oids:
                 # Output the name of the file that contains the current revision pointed for this
                 # oid, but only once per run if it is modified in multiple transactions
                 oids[oid] = 1

@@ -6,8 +6,8 @@
 import os
 
 if os.name=='posix':
-    from PosixFilesystem import PosixFilesystem as Filesystem
+    from .PosixFilesystem import PosixFilesystem as Filesystem
 elif os.name=='nt':
-    from WindowsFilesystem import WindowsFilesystem as Filesystem
+    from .WindowsFilesystem import WindowsFilesystem as Filesystem
 else:
     raise NotImplementedError('Unsupported os type %r' % (os.name,))

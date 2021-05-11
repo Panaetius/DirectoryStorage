@@ -1,4 +1,4 @@
-from Filesystem import Filesystem
+from .Filesystem import Filesystem
 
 def Storage(directory, *args, **kwargs):
     fs = Filesystem(directory)
@@ -10,4 +10,3 @@ def Storage(directory, *args, **kwargs):
     else:
         raise ValueError('Unknown DirectoryStorage class name %r' % classname)
     return apply(S, (fs,)+args, kwargs)
-    

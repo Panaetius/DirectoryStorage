@@ -5,12 +5,12 @@
 
 from __future__ import nested_scopes
 
-import os, sys, time, re, threading, Queue, errno, tempfile
-from BaseFilesystem import BaseFilesystem, BaseFilesystemTransaction, FileDoesNotExist
+import os, sys, time, re, threading, queue, errno, tempfile
+from .BaseFilesystem import BaseFilesystem, BaseFilesystemTransaction, FileDoesNotExist
 
-from utils import z64, oid2str, DirectoryStorageError, RecoveryError
-from utils import logger
-from formats import formats
+from .utils import z64, oid2str, DirectoryStorageError, RecoveryError
+from .utils import logger
+from .formats import formats
 
 class LocalFilesystem(BaseFilesystem):
     # Implementation of higher level transactional database operations,
@@ -43,8 +43,8 @@ class LocalFilesystem(BaseFilesystem):
         self._broken_flusher = 0
         self._flush_lock = threading.RLock()
         self._unflushed = []
-        self._async_work_queue = Queue.Queue()
-        self._backlog_tokens = Queue.Queue()
+        self._async_work_queue = queue.queue()
+        self._backlog_tokens = queue.queue()
         for i in range(self.config.getint('journal','backlog')):
             self._backlog_tokens.put(None)
 
@@ -264,7 +264,7 @@ class LocalFilesystem(BaseFilesystem):
         parent = os.path.split(file)[0]
         if not parent:
             return
-        if not dirs.has_key(parent):
+        if not parent in dirs:
             dirs[parent] = 1
             if not self.exists(parent):
                 self._check_dir(parent,dirs)

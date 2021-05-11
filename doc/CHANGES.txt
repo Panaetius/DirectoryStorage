@@ -115,26 +115,26 @@ Changes in 1.1.12
   of the iterator() storage interface method.  Noone is willing to
   document precisely what this method should do; the current
   implementation is enough to build ds2fs and probably no more.
-  
+
 Some minor bug fixes:
-  
+
 * Removed some redundant code in backup.py introduced in 1.1.10.
-  
+
 * Changed snapshot.conf to enable 'direct' for users upgrading from
   <1.1.10 who do not have it in their configuration file.  Having this
   off by default has proved to be counterproductive.  Add a 'nodirect'
   line to inhibit this.
-  
+
 * Fixed bug preventing 'direct' snapshot mode method working if the
   quick_shutdown option is enabled.
-  
+
 * Fixed bug causing unhelpful error messages when used with Zope 2.7
 
-  
+
 Changes in 1.1.11
 -----------------
 
-* Added missing file Storage.py. Many thanks to Dorneles Treméa.
+* Added missing file Storage.py. Many thanks to Dorneles Tremï¿½a.
 
 
 Changes in 1.1.10
@@ -154,12 +154,12 @@ first one:
   snapshot.py is still recommended if you are scripting these tools -
   it supports retrys if snapshot mode is not available immediately,
   and allows more than one tool to be run inside the one snapshot.
-  
+
 * Rationalized the command line for snapshot.py. It now uses the same
   switches as auto-snapshot-mode feature of checkds.py and
   backup.py. All old scripts using old command line switches will
   continue to work as before.
-  
+
 * Enhanced snapshot.py so that it can use direct file access to put
   the storage into snapshot mode (even when Zope is not running).
   This is the default method if snapshot.conf can not be opened.  If
@@ -175,12 +175,12 @@ first one:
   replication for storages that receive infrequent writes caused
   problems for ZODB unit tests.  These extra safety precautions have
   been inhibited when run under a unit test.
-  
+
 * Changed base class of DirectoryStorageError exception from
   POSException.POSError to POSException.StorageError.  This solves
   some minor problems with ZODB unit tests by being closer to the
   behaviour of BDBStorage.
-  
+
 * Added Storage.py.... a new wrapper module to simplify access to
   DirectoryStorage.  You no longer need to seperately construct the
   Filesystem and Full objects.  Changed setup.py and
@@ -326,7 +326,7 @@ Changes in 1.1.3
 
 Changes in 1.1.2
 ----------------
-  
+
 * Fixed major bug in snapshot mode, which can cause inconsistent
   snapshots. On entry to snapshot mode the journal is flushed by
   moving files into the main storage directory. However the journal
@@ -385,7 +385,7 @@ Changes in 1.1 alpha 2
 
 * Fixed bug in replica.py and backup.py that caused backup files and
   the old replica tar file to be written using 0777 permissions.
-  These are now written with 0640
+  These are now written with 0o640
 
 * Added read-only mode. Passing a read_only=1 parameter to the Full
   constructor will prevent all changes. Packing is still allowed in
@@ -410,7 +410,7 @@ Changes in 1.1 alpha 1
 * Added client-driven replication tool, which uses ssh in the same
   manner as cvs. This is efficient and robust. Changed LocalFilesystem
   to ensure that replication events are atomic.
-  
+
 * Added -v and -q switches to all tools. -v to make them more verbose.
   -q to hide all normal chatter, suitable for use under cron.
 

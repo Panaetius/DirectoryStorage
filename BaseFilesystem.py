@@ -4,10 +4,10 @@
 # GNU Lesser General Public License version 2.1
 
 import os, time, sys, struct, threading
-from cStringIO import StringIO
-from utils import z64, z128, OMAGIC, TMAGIC, oid2str, ConfigParser
-from utils import DirectoryStorageError, FileDoesNotExist
-from utils import logger, loglevel_INFO
+from io import StringIO
+from .utils import z64, z128, OMAGIC, TMAGIC, oid2str, ConfigParser
+from .utils import DirectoryStorageError, FileDoesNotExist
+from .utils import logger, loglevel_INFO
 
 class FilesystemPrimitives:
     # Object which defines interface for convenient low-level transactional

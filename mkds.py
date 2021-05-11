@@ -5,14 +5,14 @@
 # This library is subject to the provisions of the
 # GNU Lesser General Public License version 2.1
 
-import os, sys, md5, mimetools, binascii
+import os, sys, hashlib,uuid, binascii
 
-from formats import formats
+from .formats import formats
 
 def usage():
     return """Usage: %s directory <Full|Minimal> <bushy|chunky>
 
-A tool to create a new empty storage. 
+A tool to create a new empty storage.
 
   Full      - Default DirectoryStorage type.
   Minimal   - Does not support undo, incremental backups, replication,
@@ -33,7 +33,7 @@ def main():
 def mkds(directory,classname,format,sync=1,somemd5s=1):
     if format=='auto':
         raise ValueError('Format must be specified when creating')
-    if not formats.has_key(format):
+    if not format in formats:
         raise ValueError('Unknown format %r' % (format,))
     filename_munge = formats[format]
     if classname == 'Full':
@@ -79,7 +79,7 @@ def make_identity():
         return binascii.b2a_hex(open('/dev/urandom').read(16))
     except EnvironmentError:
         # use a hash of python's entropy gatherer
-        return binascii.b2a_hex(md5.md5(mimetools.choose_boundary()).digest())
+        return binascii.b2a_hex(hashlib.md5(uuid.uuid4().hex).digest())
 
 
 
@@ -161,7 +161,7 @@ history_timeout: 10
 # to the DirectoryStorage will not find them. However if you find
 # that packing has incorrectly deleted a file, you can recover
 # it by undoing the renaming. This option is essential if you
-# are using a development version of DirectoryStorage. It is 
+# are using a development version of DirectoryStorage. It is
 # on by default even for stable versions because it provides
 # a useful disaster recovery capability.
 #
@@ -180,7 +180,7 @@ delay_delete: 864000
 # seconds
 min_pack_time: 600
 
-# Should DirectoryStorage check that all stored object references 
+# Should DirectoryStorage check that all stored object references
 # actually refer to a real object? If disabled, then subsequently
 # following this reference would cause a POSKeyError. If enabled,
 # this problem is detected before the transaction commits.
@@ -263,7 +263,7 @@ mark: permissions
 # If the filesystem/sync option is set to 1, then this controls whether
 # fsync is also used for directory operations. Turning this off will
 # break durability in most cases. It is necessary to get DirectoryStorage
-# to run on an NFS filesystem. Durability on NFS is untested. 
+# to run on an NFS filesystem. Durability on NFS is untested.
 
 dirsync: 1
 

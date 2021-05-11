@@ -74,7 +74,7 @@ the storage into snapshot mode. Each line must be of the form:
 
   ``direct``
           Use direct file access to put the storage into snapshot mode.
-          This will only work if nothing else is using the storage.
+          This will only work if not hing else is using the storage.
           Versions since 1.1.11 will attempt to use this method even if
           not listed in the file, or if the file is missing. Use
           'nodirect' to inhibit this.

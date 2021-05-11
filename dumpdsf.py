@@ -8,10 +8,10 @@
 import os, sys, time, string, base64, traceback, struct
 from ZODB.TimeStamp import TimeStamp
 
-from utils import ZODB_referencesf
-from utils import OMAGIC, TMAGIC, CMAGIC, oid2str, timestamp2tid
+from .utils import ZODB_referencesf
+from .utils import OMAGIC, TMAGIC, CMAGIC, oid2str, timestamp2tid
 
-from formats import _chunky_munge_filename as munge
+from .formats import _chunky_munge_filename as munge
 from Full import _tid_filename
 
 
@@ -64,8 +64,8 @@ def dump_o(d):
         for oid in r:
             stroid = oid2str(oid)
             print '    oid %s at %s' % (stroid,munge('o'+stroid+'.c'),)
-            
-    
+
+
 def dump_c(d):
     tid = d
     strtid = oid2str(tid)
@@ -87,7 +87,7 @@ def dump_t(d):
         oid,oidblock = oidblock[:8],oidblock[8:]
         stroid = oid2str(oid)
         print '    oid %s at %s' % (stroid,munge('o'+stroid+'.'+strtid),)
-            
+
 
 def usage():
     return """Usage: %s filename

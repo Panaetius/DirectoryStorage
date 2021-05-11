@@ -8,7 +8,7 @@
 # This library is subject to the provisions of the
 # GNU Lesser General Public License version 2.1
 
-import os, struct, stat, errno, md5, Queue, time, sys, threading, weakref, mimetools
+import os, struct, stat, errno, hashlib,queue, time, sys, threading, weakref, mimetools
 import shutil
 from os import fsync
 
@@ -18,8 +18,8 @@ from ZODB import POSException
 from ZODB.DB import DB
 from BTrees.OIBTree import OIBTree
 
-from utils import z64, z128, oid2str, DirectoryStorageError, loglevel_BLATHER
-from LocalFilesystem import LocalFilesystem, LocalFilesystemTransaction, FileDoesNotExist
+from .utils import z64, z128, oid2str, DirectoryStorageError, loglevel_BLATHER
+from .LocalFilesystem import LocalFilesystem, LocalFilesystemTransaction, FileDoesNotExist
 
 import win32file, winerror, win32con
 import mmap
@@ -71,11 +71,11 @@ class WindowsFilesystem(LocalFilesystem):
         return fullname
 
     def _write_file_mmap(self, fullname, content):
-        # One sample on the web implied we may be able to do even better 
-        # by opening the file using win32file.CreateFile, passing 
+        # One sample on the web implied we may be able to do even better
+        # by opening the file using win32file.CreateFile, passing
         # FILE_FLAG_NO_BUFFERING.  But for now, twice-as-good using
         # a mmaped file is good enough!
-        f = os.open(fullname,os.O_CREAT|os.O_RDWR|os.O_TRUNC|os.O_BINARY,0640)
+        f = os.open(fullname,os.O_CREAT|os.O_RDWR|os.O_TRUNC|os.O_BINARY,0o640)
         try:
             m = mmap.mmap(f, len(content), access=mmap.ACCESS_WRITE)
             try:
@@ -94,7 +94,7 @@ class WindowsFilesystem(LocalFilesystem):
 
     def modify_file(self,filename,offset,content):
         fullname = os.path.join(self.dirname,filename)
-        f = os.open(fullname,os.O_CREAT|os.O_RDWR|os.O_BINARY,0640)
+        f = os.open(fullname,os.O_CREAT|os.O_RDWR|os.O_BINARY,0o640)
         try:
             os.lseek(f,offset,0)
             os.write(f,content)
@@ -121,7 +121,7 @@ class WindowsFilesystem(LocalFilesystem):
         full = os.path.join(self.dirname,filename)
         try:
             f = os.open(full,os.O_RDONLY|os.O_BINARY)
-        except EnvironmentError,e:
+        except EnvironmentError as e:
             if e.errno == errno.EINTR:
                 # Its wierd, but it happens
                 pass
@@ -129,7 +129,7 @@ class WindowsFilesystem(LocalFilesystem):
                 raise FileDoesNotExist('DirectoryStorage file %r does not exist' % (filename,) )
             else:
                 raise
-        
+
         m = mmap.mmap(f, 0, access=mmap.ACCESS_READ)
         os.close(f)
         return m[:]
@@ -161,7 +161,7 @@ class WindowsFilesystem(LocalFilesystem):
     # The mmap version of read_file is marginally faster than a win32
     # version (as opposed to writing, which is much faster)
     read_file = read_file_mmap
-        
+
     def listdir(self,filename,skip_marks=1):
         # Use our C extension
         return IncListDir(os.path.join(self.dirname,filename),skip_marks)
@@ -178,7 +178,7 @@ class WindowsFilesystem(LocalFilesystem):
         full = os.path.join(self.dirname,a)
         try:
             os.unlink(full)
-        except EnvironmentError,e:
+        except EnvironmentError as e:
             if e.errno == errno.ENOENT:
                 raise FileDoesNotExist('DirectoryStorage file %r does not exist' % (a,))
             else:
@@ -265,12 +265,12 @@ class _FileMarker:
 
     def mark(self,a):
         path = os.path.join(self.fs.dirname, a+'.mark')
-        os.close(os.open(path, os.O_CREAT,0600))
+        os.close(os.open(path, os.O_CREAT,0o600))
 
     def unmark(self,a):
         try:
            self.fs.unlink(a+'.mark')
-        except EnvironmentError,e:
+        except EnvironmentError as e:
            if e.errno==errno.ENOENT:
                pass
            else:
@@ -413,7 +413,7 @@ class _StorageMarker:
         # ensure that directory exists
         try:
             os.mkdir(self.dir)
-        except EnvironmentError, e:
+        except EnvironmentError as e:
             pass
         # clean up the directory
         self._clean()
@@ -509,7 +509,7 @@ class _FileStorageMarker(_StorageMarker):
 
     def initstorage(self):
         # create the filestorage
-        name = 'marks-%s.fs' % (mimetools.choose_boundary(),)
+        name = 'marks-%s.fs' % (uuid.uuid4().hex,)
         self.substorage = FileStorage(os.path.join(self.dir,name))
 
 class _MinimalStorageMarker(_StorageMarker):
@@ -517,7 +517,7 @@ class _MinimalStorageMarker(_StorageMarker):
     def initstorage(self):
         import Minimal
         import mkds
-        name = 'marks-%s' % (mimetools.choose_boundary(),)
+        name = 'marks-%s' % (uuid.uuid4().hex,)
         path = os.path.join(self.dir,name)
         mkds.mkds(path,'Minimal',self.fs.format,sync=0,somemd5s=0)
         subfs = WindowsFilesystem(path)

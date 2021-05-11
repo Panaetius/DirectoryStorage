@@ -3,8 +3,8 @@
 # This library is subject to the provisions of the
 # GNU Lesser General Public License version 2.1
 
-import os, errno, time, sys, string, struct, md5, cPickle, random, re
-import cStringIO
+import os, errno, time, sys, string, struct, hashlib,pickle, random, re
+import pickle as cPickle
 
 from ZODB import POSException
 from ZODB import TimeStamp
@@ -12,11 +12,11 @@ from ZODB.ConflictResolution import ConflictResolvingStorage, ResolvedSerial
 
 from BaseDirectoryStorage import BaseDirectoryStorage
 
-from utils import z16, z64, z128, OMAGIC, TMAGIC, CMAGIC, oid2str, timestamp2tid
-from utils import DirectoryStorageError, DirectoryStorageVersionError, FileDoesNotExist
-from utils import DanglingReferenceError, POSGeorgeBaileyKeyError
-from utils import class_name_from_pickle
-from utils import ZODB_referencesf, logger
+from .utils import z16, z64, z128, OMAGIC, TMAGIC, CMAGIC, oid2str, timestamp2tid
+from .utils import DirectoryStorageError, DirectoryStorageVersionError, FileDoesNotExist
+from .utils import DanglingReferenceError, POSGeorgeBaileyKeyError
+from .utils import class_name_from_pickle
+from .utils import ZODB_referencesf, logger
 
 class Full(BaseDirectoryStorage,ConflictResolvingStorage):
 
@@ -98,7 +98,7 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
         # - data can be None, which indicates a George Bailey object
         #   (i.e. one who's creation has been transactionally undone).
         #
-        # - prev_txn is a hint that an identical pickle has been stored 
+        # - prev_txn is a hint that an identical pickle has been stored
         #   for the same oid in a previous transaction. Some other storages
         #   use this to enable a space-saving optimisation. We dont.
         #
@@ -149,7 +149,7 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
         # be created without detection:
         # 1. Writing a George Bailey object revision when another object
         #    contains a reference to it. We only check for references
-        #    in objects written in this transaction. 
+        #    in objects written in this transaction.
         # 2. A concurrent pack may have scheduled a referenced object
         #    for removal. It is not dangling now, but it would be
         #    once the pack is complete
@@ -159,20 +159,20 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
             if td.oids.has_key(refoid):
                 if td.oids[refoid]:
                     # A reference to a George Bailey object written in this
-                    # transaction. 
+                    # transaction.
                     raise DanglingReferenceError(soid,refoid)
                 else:
                     # A reference to an ordinary object written in this
                     # transaction
                     pass
-            elif good_old_oids.has_key(refoid):
+            elif refoid in good_old_oids:
                 # We have already checked that it exists in the database
                 pass
             else:
                 # An object outside of this transaction. Try to load it.
                 try:
                     self._load_object_file(refoid)
-                except POSException.POSKeyError: 
+                except POSException.POSKeyError:
                     # Failed to load the object.
                     raise DanglingReferenceError(soid,refoid)
                 else:
@@ -181,12 +181,12 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
 
         # Record the oid of every modified object in the transaction file
         ob = string.join(td.oids.keys(),'')
-                    
+
         u,d,e = td.u,td.d,td.e
         assert self._prev_serial<self.get_current_transaction()
         body = struct.pack("!HHHIH",len(u),len(d),len(e),len(ob),0) + u + d + e + ob
         if self._md5_write:
-            md5sum = md5.md5(body).digest()
+            md5sum = hashlib.md5(body).digest()
         else:
             md5sum = z128
 
@@ -232,7 +232,7 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
                   'id'           : tid }
             if lene:
                 try:
-                    e = cPickle.loads(data[60+lenu+lend:60+lenu+lend+lene])
+                    e = cPickleloads(data[60+lenu+lend:60+lenu+lend+lene])
                     d.update(e)
                 except:
                     pass
@@ -310,7 +310,7 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
         md5sum = data[32:48]
         vdata = data[48:]
         if md5sum!=z128 and check_md5:
-            if md5.md5(vdata).digest()!=md5sum:
+            if hashlib.md5(vdata).digest()!=md5sum:
                 raise DirectoryStorageError('Pickle checksum error reading oid %r' % (stroid,))
 
     def transactionalUndo(self, transaction_id, transaction):
@@ -341,7 +341,7 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
         while oidblock:
             # oids are packed into the oidblock. no duplicates.
             oid,oidblock = oidblock[:8],oidblock[8:]
-            assert not oids.has_key(oid)
+            assert notoid in oids
             oids[oid] = 1
             stroid = oid2str(oid)
             # load the revision to be undone
@@ -640,7 +640,7 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
                     referencesf(pickle,refoids)
                     for refoid in refoids:
                         allrefoids[refoid] = 1
-                except (IOError,ValueError,EOFError),e:
+                except (IOError,ValueError,EOFError) as e:
                     if first:
                         # The current revision of an object can not be unpickled. Thats bad
                         # maybe you could undo the last transaction, and hope the second-to-last
@@ -748,7 +748,7 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
                 # this file is already awaiting delayed deletion
                 try:
                     time_deleted = int(string.split(file,'-')[-2])
-                except (ValueError,IndexError),e:
+                except (ValueError,IndexError) as e:
                     # Wierd file name. delete it
                     time_deleted = 0
                 if time_deleted + self.delay_delete < now:

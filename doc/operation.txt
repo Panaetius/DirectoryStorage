@@ -12,7 +12,7 @@ DirectoryStorage implements the high-level ZODB transaction semantics
 using low-level filesystem operations, many of which are not atomic.
 
 Transactional behaviour is implemented by os-specific classes derived
-from BaseFilesystem, such as PosixFilesystem. These classes use
+from .BaseFilesystem, such as PosixFilesystem. These classes use
 several real filesystem directories to create the appearance of a
 single large virtual directory in which a group of files can be
 replaced atomically.

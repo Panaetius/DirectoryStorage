@@ -9,7 +9,7 @@ from ZODB import POSException
 
 from BaseDirectoryStorage import BaseDirectoryStorage
 
-from utils import z64, z128, OMAGIC, oid2str, DirectoryStorageError, DirectoryStorageVersionError, FileDoesNotExist
+from .utils import z64, z128, OMAGIC, oid2str, DirectoryStorageError, DirectoryStorageVersionError, FileDoesNotExist
 
 
 class Minimal(BaseDirectoryStorage):

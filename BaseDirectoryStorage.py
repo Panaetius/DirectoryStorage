@@ -3,15 +3,15 @@
 # This library is subject to the provisions of the
 # GNU Lesser General Public License version 2.1
 
-import os, struct, stat, errno, md5, time, sys, string, threading, re
+import os, struct, stat, errno, hashlib,time, sys, string, threading, re
 
 from ZODB import POSException
 from ZODB.BaseStorage import BaseStorage
 from ZODB.TimeStamp import TimeStamp
 
-from utils import z64, z128, OMAGIC, TMAGIC, oid2str, timestamp2tid
-from utils import DirectoryStorageError, DirectoryStorageVersionError, FileDoesNotExist
-from utils import ConfigParserError, logger, loglevel_BLATHER
+from .utils import z64, z128, OMAGIC, TMAGIC, oid2str, timestamp2tid
+from .utils import DirectoryStorageError, DirectoryStorageVersionError, FileDoesNotExist
+from .utils import ConfigParserError, logger, loglevel_BLATHER
 
 _some_unique_object = []
 
@@ -138,7 +138,7 @@ class BaseDirectoryStorage(BaseStorage):
         pickle = data[72:]
         serial = data[64:72]
         return pickle,serial
- 
+
     def loadEx(self,oid,version):
         assert not version
         pickle,serial = self.load(oid,version)
@@ -159,7 +159,7 @@ class BaseDirectoryStorage(BaseStorage):
         md5sum = data[40:56]
         serials_plus_pickle = data[56:]
         if md5sum!=z128 and check_md5:
-            if md5.md5(serials_plus_pickle).digest()!=md5sum:
+            if hashlib.md5(serials_plus_pickle).digest()!=md5sum:
                 raise DirectoryStorageError('Pickle checksum error reading oid %r' % (oid2str(oid),))
         appserial = serials_plus_pickle[8:16]
         if serial is not None and serial!=appserial:
@@ -207,7 +207,7 @@ class BaseDirectoryStorage(BaseStorage):
         # XXXX is it worth allowing the md5 checksum to be delayed
         # until the asynchronous flush too?
         if self._md5_write:
-            md5sum = md5.md5(serials_plus_pickle).digest()
+            md5sum = hashlib.md5(serials_plus_pickle).digest()
         else:
             md5sum = z128
         body = header + md5sum + serials_plus_pickle
@@ -336,7 +336,7 @@ class BaseDirectoryStorage(BaseStorage):
             # will fail if it is earlier than the pack time.
             # If the min pack time is zero then we certainly dont care about replication
             # or backup. We are probably inside a ZODB unit test, which assumes
-            # this safety precaution does not exist. inhibit it            
+            # this safety precaution does not exist. inhibit it
             t = self._prev_serial
             logger.log(loglevel_BLATHER, 'pack time threshold moved back to '
                        'date of last write transaction')
@@ -364,7 +364,7 @@ class BaseDirectoryStorage(BaseStorage):
 
 # These two classes are used to keep some classes around longer than
 # might normally be expected during pack.
-        
+
 class keep_forever:
     # Never remove it on pack
     def expired(self,threshold,tid):

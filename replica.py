@@ -6,7 +6,7 @@
 # GNU Lesser General Public License version 2.1
 
 from __future__ import nested_scopes
-import sys, getopt, os, time, string, stat, binascii, md5, binascii, tempfile, stat, traceback
+import sys, getopt, os, time, string, stat, binascii, hashlib, tempfile, stat, traceback
 
 try:
     import ZODB
@@ -15,8 +15,8 @@ except ImportError:
     raise
 
 from ZODB.POSException import POSError
-from utils import oid2str, ConfigParser, tid2date, format_filesize, DirectoryStorageError
-from formats import formats
+from .utils import oid2str, ConfigParser, tid2date, format_filesize, DirectoryStorageError
+from .formats import formats
 from snapshot import snapshot
 import Full
 from PosixFilesystem import PosixFilesystem
@@ -48,7 +48,7 @@ def main():
         r = replica_slave(remoteargs, localargs)
     for o, a in opts:
         if o == '-v':
-            r.verbose += 1  
+            r.verbose += 1
         elif o == '-q':
             r.verbose -= 1
         elif o == '-d':
@@ -64,7 +64,7 @@ def main():
     except DirectoryStorageError:
         sys.exit(traceback.format_exception_only(sys.exc_info()[0],sys.exc_info()[1])[0].strip())
 
-        
+
 class replica_slave:
     def __init__(self, remoteargs, localargs):
         self.verbose = 0
@@ -91,7 +91,7 @@ class replica_slave:
 
     def main(self):
         if self.local:
-            cmd = [ sys.executable, os.path.join(mypath,'replica.py') ] 
+            cmd = [ sys.executable, os.path.join(mypath,'replica.py') ]
         else:
             cmd = self.ssh[:]
             cmd.extend ( [ self.rhost, self.rpython, os.path.join(self.ripath,"replica.py") ] )
@@ -129,7 +129,7 @@ class replica_slave:
         # We get an exception here if we cannot lock the local
         # storage, for example if there is a live storage open
         # or another concurrent replica.py
-        try:        
+        try:
             self.fs.engage(synchronous=1)
         except POSError:
             raise ReplicaError('Can not engage replica storage')
@@ -149,7 +149,7 @@ class replica_slave:
         request = self.get_request()
         p = pipeline()
         tarname = os.path.join(self.path,'misc','.replica.incoming')
-        tarfd = os.open(tarname,os.O_RDWR|os.O_CREAT,0640)
+        tarfd = os.open(tarname,os.O_RDWR|os.O_CREAT,0o640)
         p.set_output(tarfd)
 
         def ssh():
@@ -157,10 +157,10 @@ class replica_slave:
 
         w = p.pipe_input()
         p.run( ssh )
-       
+
         os.write(w,request)
         os.close(w)
-        
+
         p.close()
 
         if not p.all_ok():
@@ -174,11 +174,11 @@ class replica_slave:
         os.fsync(tarfd)
         os.close(tarfd)
         self.fs.sync_directory('misc')
-        
+
         # Atomically commit this replica increment
         self.fs.rename('misc/.replica.incoming','journal/replica.tar')
         self.fs.sync_directory('journal')
-            
+
     def get_request(self):
         # Compute a string to send into stdin on our remote process to
         # tell it where to start replicating from
@@ -194,10 +194,10 @@ class replica_slave:
             tdata = ''
         else:
             tdata = open(os.path.join(self.path,'A',self.filename_munge(Full._tid_filename(current_tid)))).read()
-        return 'replica request 0\n%s\n%s\n%s\n' % ( identity, binascii.b2a_hex(current_tid), binascii.b2a_hex(md5.md5(tdata).digest()) )
+        return 'replica request 0\n%s\n%s\n%s\n' % ( identity, binascii.b2a_hex(current_tid), binascii.b2a_hex(hashlib.md5(tdata).digest()) )
 
 
-                                                                                                                                                
+
 class replica_master:
     def __init__(self, directory):
         self.path = directory
@@ -228,9 +228,9 @@ class replica_master:
                 tdata = open(os.path.join(self.path,'A',self.filename_munge(Full._tid_filename(old_tid)))).read()
         except EnvironmentError:
             raise ReplicaError('reference transaction does not exist')
-        if md5.md5(tdata).digest()!=thash1:
+        if hashlib.md5(tdata).digest()!=thash1:
             raise ReplicaError('reference transaction differs')
-       
+
         s = snapshot(self.path, '-', verbose=self.verbose)
         s.acquire()
         try:
@@ -265,7 +265,7 @@ class replica_master:
                 raise ReplicaError('error %d in whatsnew' % e1)
             if e2:
                 raise ReplicaError('error %d in cpio' % e2)
-                
+
         finally:
             # release the snapshot quickly
             s.release()
@@ -279,10 +279,10 @@ class replica_master:
                 break
             sys.stdout.write(c)
 
-        
+
 class ReplicaError(DirectoryStorageError):
     pass
-     
+
 
 def usage():
     return """Usage: %s [options] [user@]MasterMachine:MasterDirectory LocalReplicaDirectory
@@ -299,7 +299,7 @@ options:
 
  -v -q
     more or less verbose
-    
+
  -h
 
     Show this help

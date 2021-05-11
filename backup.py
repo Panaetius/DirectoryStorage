@@ -42,7 +42,7 @@ def main():
             s.release()
     except DirectoryStorageError:
         sys.exit(traceback.format_exception_only(sys.exc_info()[0],sys.exc_info()[1])[0].strip())
-    
+
 def backup_main(path,timestamp,argv):
     if len(argv)<1:
         sys.exit(usage())
@@ -74,7 +74,7 @@ class backup:
         if self.config.get('storage','classname')!='Full':
             sys.exit('ERROR: this is not a Full storage')
         format = self.config.get('structure','format')
-        if not formats.has_key(format):
+        if not format in formats:
             sys.exit('ERROR: Unknown format %r' % (format,))
         self.filename_munge = formats[format]
         self.current_tid = open(os.path.join(self.path,'A',self.filename_munge('x.serial'))).read()
@@ -129,11 +129,11 @@ class backup:
 
         def find():
             os.chdir(self.path)
-            for name in os.listdir('.'): 
+            for name in os.listdir('.'):
                 sys.stdout.write(name+'\n')       # just the directory - not its content
-            for name in os.listdir('config'): 
+            for name in os.listdir('config'):
                 sys.stdout.write('config/'+name+'\n')
-            sys.stdout.flush() 
+            sys.stdout.flush()
             os.execlp('find',      'find', 'A', '-type', 'f', '-not', '-name', '*-deleted' )
 
         def cpio():
@@ -143,7 +143,7 @@ class backup:
         def gzip():
             os.execlp('gzip',      'gzip' )
 
-        fd = os.open(tmpfilename,os.O_WRONLY|os.O_CREAT,0640)
+        fd = os.open(tmpfilename,os.O_WRONLY|os.O_CREAT,0o640)
         p.set_output(fd)
         p.run( find, cpio, gzip )
         p.close()
@@ -173,7 +173,7 @@ class backup:
         tmpfilename = '%s/backups/.tmp-%s-%s-to-%s.tgz' % (self.path,self.prefix,oldseq,self.seq)
         timestamp = time.strftime('%Y-%m-%d %H:%M:%S GMT', time.gmtime(timestamp))
         print >> sys.stderr, 'Creating incremental backup %r\n    since backup %d at %s\n    which included transaction %s %s' % (filename,oldseq,timestamp,oid2str(tid),tid2date(tid))
-        
+
         p = pipeline()
 
         def whatsnew():
@@ -187,8 +187,8 @@ class backup:
 
         def gzip():
             os.execlp('gzip',      'gzip' )
-        
-        fd = os.open(tmpfilename,os.O_WRONLY|os.O_CREAT,0640)
+
+        fd = os.open(tmpfilename,os.O_WRONLY|os.O_CREAT,0o640)
         p.set_output(fd)
         p.run( whatsnew, cpio, gzip )
         p.close()
@@ -251,7 +251,7 @@ def parse_time(t):
         if f.close():
             raise ValueError(t)
         return int(c)
-        
+
 
 class NoPreviousBackups(Exception):
     pass
@@ -275,12 +275,12 @@ def usage():
 
 A DirectoryStorage backup tool using gnu tar. This tool can take
 full and incremental backups of a DirectoryStorage database
-snapshot. 
+snapshot.
 
 Options are:
 
     --storage DIRECTORY
-    
+
         The full path to the storage. May only be omitted if run
         under the snapshot.py tool.
 

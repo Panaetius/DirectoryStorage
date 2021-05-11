@@ -5,7 +5,8 @@
 # This library is subject to the provisions of the
 # GNU Lesser General Public License version 2.1
 
-import os, sys, time, struct, md5, getopt, traceback
+import os, sys, time, struct,  getopt, traceback
+import pickle as cPickle
 
 from ZODB import TimeStamp
 from DirectoryStorage.utils import ZODB_referencesf
@@ -45,7 +46,7 @@ def main():
     if verbose>=0:
         print >> sys.stderr, 'done'
 
-    
+
 def checkds(directory,verbose):
     if not os.path.exists(directory):
         sys.exit('ERROR: directory does not exist')
@@ -184,7 +185,7 @@ class FullChecker(BaseChecker):
                   'id'           : tid }
             if lene:
                 try:
-                    e = cPickle.loads(data[60+lenu+lend:60+lenu+lend+lene])
+                    e = cPickleloads(data[60+lenu+lend:60+lenu+lend+lene])
                     d.update(e)
                 except:
                     pass
@@ -221,7 +222,7 @@ class FullChecker(BaseChecker):
         if md5sum==z128 :
             self.counter('transaction files with no checksum')
         else:
-            if md5.md5(vdata).digest()!=md5sum:
+            if hashlib.md5(vdata).digest()!=md5sum:
                 self.problem('transaction files with a bad md5 checksum',name)
                 return 1
 
@@ -331,7 +332,7 @@ class FullChecker(BaseChecker):
                     ZODB_referencesf(pickle,refoids)
                     for refoid in refoids:
                         allrefoids.setdefault(refoid, route + [ (class_name, oid, tid), ] )
-                except (IOError,ValueError,EOFError),e:
+                except (IOError,ValueError,EOFError) as e:
                     if first:
                         self.problem('bad pickle in current data', name)
                         return
@@ -397,7 +398,7 @@ class FullChecker(BaseChecker):
         if md5sum==z128:
             self.counter('object data files with no md5 checksum')
         else:
-            if md5.md5(serials_plus_pickle).digest()!=md5sum:
+            if hashlib.md5(serials_plus_pickle).digest()!=md5sum:
                 self.problem('object data files with bad md5 checksum',name)
                 return 1
         appserial = serials_plus_pickle[8:16]
@@ -422,10 +423,10 @@ options:
  --storage DIRECTORY
     Indicate the DirectoryStorage home directory. May be omitted
     if this tool is being run under the snapshot.py tool.
- 
+
  -v -q
     More or less verbose.
-    
+
 
 """ % os.path.basename(sys.argv[0])
 

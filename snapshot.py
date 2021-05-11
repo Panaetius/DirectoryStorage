@@ -16,7 +16,7 @@ except ImportError:
 from zc.lockfile import LockFile
 from ZODB.POSException import POSError
 import xmlrpclib
-from utils import DirectoryStorageError
+from .utils import DirectoryStorageError
 from Filesystem import Filesystem
 
 class xmlrpclib_auth_Transport(xmlrpclib.Transport):
@@ -280,7 +280,7 @@ It will try each one in in turn until one succeeds.
     must be unencrypted.
 
   direct
-    Open the files direct. Only works if nothing else is
+    Open the files direct. Only works if not hing else is
     using the storage
 
 Once in snapshot mode this tool will lock the directory. It only
