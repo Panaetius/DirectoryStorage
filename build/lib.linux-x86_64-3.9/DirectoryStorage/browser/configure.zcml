@@ -1,0 +1,34 @@
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:browser="http://namespaces.zope.org/browser"
+    i18n_domain="zope">
+
+  <!-- this directive overrides the original ZODB control form from
+       zope.app.applicationcontrol.browser -->
+  <browser:page
+      for="zope.app.applicationcontrol.interfaces.IApplicationControl"
+      name="ZODBControl.html"
+      template="zodbcontrol.pt"
+      class=".zodbcontrol.DirectoryStorageControlView"
+      permission="zope.ManageApplication"
+      menu="zmi_views" title="ZODB Control"
+      />
+
+  <!-- form handlers -->
+  <browser:page
+      for="zope.app.applicationcontrol.interfaces.IApplicationControl"
+      name="enterSnapshot.html"
+      class=".zodbcontrol.DirectoryStorageControlView"
+      attribute="enterSnapshot"
+      permission="zope.ManageApplication"
+      />
+
+  <browser:page
+      for="zope.app.applicationcontrol.interfaces.IApplicationControl"
+      name="leaveSnapshot.html"
+      class=".zodbcontrol.DirectoryStorageControlView"
+      attribute="leaveSnapshot"
+      permission="zope.ManageApplication"
+      />
+
+</configure>

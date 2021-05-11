@@ -1,0 +1,134 @@
+Index: ClientStorage.py
+===================================================================
+RCS file: /cvs-repository/Packages/ZEO/ClientStorage.py,v
+retrieving revision 1.73.2.4
+diff -c -4 -r1.73.2.4 ClientStorage.py
+*** ClientStorage.py	16 Oct 2002 21:44:05 -0000	1.73.2.4
+--- ClientStorage.py	30 Oct 2002 11:06:40 -0000
+***************
+*** 397,404 ****
+--- 397,416 ----
+      def getSize(self):
+          """Storage API: an approximate size of the database, in bytes."""
+          return self._info['size']
+  
++     def getExtensionMethods(self):
++         """getExtensionMethods - A new storage API method.
++ 
++         This returns a dictionary whose keys are names of extra methods
++         provided by this storage. Storage proxies (such as ZEO) should
++         call this method to determine the extra methods that they need
++         to proxy in addition to the standard storage methods.
++         Dictionary values should be None; this will be a handy place
++         for extra marshalling information, should we need it
++         """
++         return self._info['extensionMethods']
++ 
+      def supportsUndo(self):
+          """Storage API: return whether we support undo."""
+          return self._info['supportsUndo']
+  
+***************
+*** 463,470 ****
+--- 475,488 ----
+          This does not support the optional filter argument defined by
+          the Storage API.
+          """
+          return self._server.history(oid, version, length)
++ 
++     def __getattr__(self,name):
++         if self.getExtensionMethods().has_key(name):
++             return self._server.extensionMethod(name)
++         else:
++             raise AttributeError(name)
+  
+      def loadSerial(self, oid, serial):
+          """Storage API: load a historical revision of an object."""
+          return self._server.loadSerial(oid, serial)
+Index: ServerStub.py
+===================================================================
+RCS file: /cvs-repository/Packages/ZEO/ServerStub.py,v
+retrieving revision 1.9
+diff -c -4 -r1.9 ServerStub.py
+*** ServerStub.py	1 Oct 2002 18:49:12 -0000	1.9
+--- ServerStub.py	30 Oct 2002 11:06:40 -0000
+***************
+*** 32,39 ****
+--- 32,42 ----
+          zrpc.connection.Connection class.
+          """
+          self.rpc = rpc
+  
++     def extensionMethod(self,name):
++         return ExtensionMethodWrapper(self.rpc,name).call
++ 
+      def _update(self):
+          """Handle pending incoming messages.
+  
+          This method is typically only used when no asyncore mainloop
+***************
+*** 136,139 ****
+--- 139,149 ----
+          if max is None:
+              return self.rpc.call('versions')
+          else:
+              return self.rpc.call('versions', max)
++ 
++ class ExtensionMethodWrapper:
++     def __init__(self,rpc,name):
++         self.rpc = rpc
++         self.name = name
++     def call(self,*a,**kwa):
++         return apply(self.rpc.call,(self.name,)+a,kwa)
+Index: StorageServer.py
+===================================================================
+RCS file: /cvs-repository/Packages/ZEO/StorageServer.py,v
+retrieving revision 1.74.2.2
+diff -c -4 -r1.74.2.2 StorageServer.py
+*** StorageServer.py	4 Oct 2002 19:49:53 -0000	1.74.2.2
+--- StorageServer.py	30 Oct 2002 11:06:40 -0000
+***************
+*** 243,250 ****
+--- 243,258 ----
+          self.history = self.storage.history
+          self.load = self.storage.load
+          self.loadSerial = self.storage.loadSerial
+          self.modifiedInVersion = self.storage.modifiedInVersion
++         try:
++             fn = self.storage.getExtensionMethods
++         except AttributeError:
++             pass
++         else:
++             for name in fn().keys():
++                 if not hasattr(self,name):
++                     setattr(self,name,getattr(self.storage,name))
+  
+      def check_tid(self, tid, exc=None):
+          if self.read_only:
+              raise ReadOnlyError()
+***************
+*** 294,307 ****
+--- 302,324 ----
+                  'supportsUndo': self.storage.supportsUndo(),
+                  'supportsVersions': self.storage.supportsVersions(),
+                  'supportsTransactionalUndo':
+                  self.storage.supportsTransactionalUndo(),
++                 'extensionMethods': self.getExtensionMethods(),
+                  }
+  
+      def get_size_info(self):
+          return {'length': len(self.storage),
+                  'size': self.storage.getSize(),
+                  }
++ 
++     def getExtensionMethods(self):
++         try:
++             e = self.storage.getExtensionMethods
++         except AttributeError:
++             return {}
++         else:
++             return e()
+  
+      def zeoLoad(self, oid):
+          v = self.storage.modifiedInVersion(oid)
+          if v:

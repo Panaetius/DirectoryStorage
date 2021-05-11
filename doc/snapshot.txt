@@ -1,0 +1,149 @@
+snapshot.py - DirectoryStorage Snapshot Tool
+============================================
+
+Usage::
+
+  snapshot.py [options] COMMAND
+
+  COMMAND
+      A command to be run when in snapshot mode.
+
+Options include:
+
+  --storage DIRECTORY
+      Indicate the DirectoryStorage home directory. The ``--storage``
+      switch may only be omitted if you are the old (pre 1.1.10)
+      command line syntax.
+
+  -v
+      Make it more verbose.
+
+  -q
+      Make it less verbose.
+
+  -t SECONDS
+      If something else has locked snapshot mode, keep retrying for
+      the specified number of seconds. (default: no retries)
+
+  -s SECONDS
+      Sleep for the specified number of seconds between retries.
+      (default: 10 seconds)
+
+  --snapshot-conf FILE
+      Override the default path to the snapshot.conf configuration
+      file.  The default is DIRECTORY/config/snapshot.conf
+
+
+Operation
+---------
+
+This tool will force the storage into snapshot mode using the methods
+described in the config/snapshot.conf file. Snapshot mode guarantees
+that the storage directory contains only whole ZODB transactions, and
+that the main storage files will not be modified. Any live storage
+process retains full read/write access.
+
+Once in snapshot mode it will lock the relevent files in the storage
+directory to ensure that it remains a coherent snapshot while the
+``COMMAND`` is run.  ``COMMAND`` is only run once shapshot mode is
+guaranteed.
+
+As of version 1.1.10, this tool is not needed for running single
+instances of the `checkds.py`_ tool (to check the storage for
+corruption) or the `backup`_ tool.  However snapshot.py is still
+useful when scripting these other tools.  It is the only way to access
+the retry mechanism.  It allows you to run a script which, for
+example, checks the storage before taking a backup inside one single
+snapshot.
+
+
+Exit Code
+---------
+
+If it successfully enters snapshot mode, snapshot.py will exit with
+the same exit code as COMMAND. It will have a non-zero exit code if
+COMMAND was not run.
+
+
+snapshot.conf
+-------------
+
+This file is stored in the config directory of the storage. It
+contains lines which describe methods which the tool can try to force
+the storage into snapshot mode. Each line must be of the form:
+
+  ``direct``
+          Use direct file access to put the storage into snapshot mode.
+          This will only work if nothing else is using the storage.
+          Versions since 1.1.11 will attempt to use this method even if
+          not listed in the file, or if the file is missing. Use
+          'nodirect' to inhibit this.
+
+  ``http URL ACCESS``
+          Use xmlrpc into Zope to put the storage into snapshot mode, and
+          take it back out again once COMMAND has finished. This will
+          only work if Zope (possibly via ZEO) is using the storage. URL
+          is of a DirectoryStorageToolkit instance in the Zope server.
+          ACCESS is the name of a file which contains username and
+          password of a Zope user authorized to use that
+          DirectoryStorageToolkit, on one line seperated by a colon. Note
+          that this format is compatible with zope's 'access' file,
+          although snapshot.py supports only cleartext passwords. In
+          version 1.1.9 and earlier, a relative filename in this field
+          will be considered to be relative to the current working
+          directory. In version 1.1.10 and later, it is relative to the
+          directory containing snapshot.conf.
+
+Note that it can be useful to list more that one url, for example if
+the same storage can be accessed through more than one Zope server.
+
+
+DirectoryStorageError: Could not lock storage directory
+-------------------------------------------------------
+
+This error is shown if it is unable to lock the storage directory into
+snapshot mode. This indicates that:
+
+1. It could not communicate with the Zope server to switch it into
+   snapshot mode. DirectoryStorageToolkit configuration? Bad URLs?
+   Overzealous firewall? Maybe you forgot to patch ZEO, as described
+   in `doc/INSTALL.txt`_.
+
+2. It is configured to use the wrong Zope server. Using the -v switch
+   will include a *Entered snapshot using....* message.
+
+3. Your zope server crashed, and therefore was unable to perform a
+   normal clean shutdown which leaves the storage directory in a
+   snapshot state. (or you have used the quick_shutdown option in the
+   storage configuration file, which inhibits this tidy shutdown
+   process). Also you included the ``nodirect`` option preventing the
+   snapshot tool from forcing it into snapshot mode directly (or you
+   are using a version before 1.1.11 which does not try ``direct``
+   access automatically).
+
+4. Some other process is using direct access into the storage
+   directory which prevents this tool using ``direct`` access.
+
+Note that there is no problem if your Zope servers shutdown cleanly.
+It leaves the storage in a snapshot state, and the snapshot.py tool
+can lock it in that state. For this reason the snapshot tool will not
+show any warnings even if all of the Zope servers listed in
+snapshot.conf are inaccessible.
+
+
+Old Command Line
+----------------
+
+Version 1.1.9 and before supported a different command line format of
+the form::
+
+  snapshot.py DIRECTORY PATH-TO-SNAPSHOT-CONF COMMAND
+
+It was possible to specify "-" as the path to snapshot.conf, which
+indicated that the default location should be used. This command line
+format is still supported today, although the format listed above is
+preferred.
+
+.. _backup: backup.html
+.. _checkds.py: checkds.html
+.. _doc/INSTALL.txt: install.html

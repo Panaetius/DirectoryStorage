@@ -1,0 +1,622 @@
+CHANGES of DirectoryStorage
+===========================
+
+Changes in 1.1.20
+-----------------
+
+* Fixed ZODB 3.5 compatibility bug.
+
+* Install all tools, to be directly usable.
+
+Changes in 1.1.19
+-----------------
+
+* Fixed ZODB 3.4 compatibility bug in the ds2fs tool.
+
+* Improved documentation for the check_dangling_references
+  configuration option. In particular, included a recomendation
+  to turn it off in write-heavy applications. Thanks to
+  Santi Camps for diagnosing this performance issue.
+
+Changes in 1.1.18
+-----------------
+
+* Fixed bug preventing the server from entering snapshot mode,
+  due an accidental Zope DirectoryStorageToolkit interface change.
+  Client tools that use snapshot mode from versions >=1.1.18
+  are compatible only with DirectoryStorageToolkit versions >=1.1.17.
+  Thanks to Santi Camps.
+
+Changes in 1.1.17
+-----------------
+
+* Workaround for unicode user names in current versions of Zope 3
+
+Changes in 1.1.16
+-----------------
+
+* Support for Zope 2.8, ZODB 3.4
+
+* Support for Zope 3.1 thanks to Philipp von Weitershausen.
+
+* All documentation and web site now stored in reST. Also thanks to
+  Philipp von Weitershausen. This removes one barrier to comunity
+  contributions to the DirectoryStorage documentation.
+
+
+Changes in 1.1.15
+-----------------
+
+* Added first draft of Windows NTFS support.  Thanks to Enfold Systems
+  and Mark Hammond.
+
+* Fixed possible data loss bug.  Bug depends on some filesystem
+  characteristics.  Confirmed on VXFS on Solaris is affected.
+  reiserfs and ext3 on linux seem unaffected.  Thanks again to Matt
+  Hamilton.  This change removes the maybe_unmark method of the
+  MarkContext interface.
+
+* Added -e switch to replica.py, inspired by the same switch in rsync.
+  This lets you replace the process used for communication between
+  replica and master, which is /usr/bin/ssh by default.  This might be
+  useful if ssh is installed in a different location, to pass other
+  parameters to ssh, or to use rsh if you dare.  Thanks to Bj|rn
+  Augustsson for inspiration and testing.
+
+
+Changes in 1.1.14
+-----------------
+
+* Fixed data loss bug.  Thanks to Matt Hamilton for diagnosing this
+  problem.  Original bug advisory follows:
+
+    A bug has been discovered affecting all currently released
+    versions, which can cause data loss when packing.
+
+    A necessary condition for triggering this bug is for some storage
+    files to be owned by a uid different to that of the storage
+    process at the point the pack is run.  This scenario will not
+    occur naturally during normal operation - no storage will be
+    affected by this bug unless an administrator has been manually
+    changing ownership of files or processes.
+
+    All damage caused by this bug can be manually undone using
+    DirectoryStorage's delayed deletion feature, provided the damage
+    is discovered in time.  In the default configuration, within 10
+    days of the pack that caused the damage. For more information see
+    http://dirstorage.sourceforge.net/FAQ.html#deleted
+
+    The damage will appear as a POSKeyError when accessing damaged
+    objects.  All damage caused by this bug can be detected using
+    DirectoryStorage's checkds storage checking tool.  If checkds
+    finds no problem then your storage is clean.
+
+
+Changes in 1.1.13
+-----------------
+
+* Added workarounds for running on NFS.  This is still not a supported
+  configuration, but now it avoids raising exceptions on every commit.
+
+* Removed some redundant code.  Thanks to Tim Hicks.
+
+
+Changes in 1.1.12
+-----------------
+
+* The first two enhancements in this release are sponsored by
+  Mediatria s.r.l., Milano (I) www.altoforno.net
+
+* Added ds2fs.py, a tool to convert DirectoryStorage data into a
+  FileStorage (Data.fs file).  This tool is alpha quality in this
+  release.
+
+* Added FullSimpleIterator, an object that provides an implementation
+  of the iterator() storage interface method.  Noone is willing to
+  document precisely what this method should do; the current
+  implementation is enough to build ds2fs and probably no more.
+  
+Some minor bug fixes:
+  
+* Removed some redundant code in backup.py introduced in 1.1.10.
+  
+* Changed snapshot.conf to enable 'direct' for users upgrading from
+  <1.1.10 who do not have it in their configuration file.  Having this
+  off by default has proved to be counterproductive.  Add a 'nodirect'
+  line to inhibit this.
+  
+* Fixed bug preventing 'direct' snapshot mode method working if the
+  quick_shutdown option is enabled.
+  
+* Fixed bug causing unhelpful error messages when used with Zope 2.7
+
+  
+Changes in 1.1.11
+-----------------
+
+* Added missing file Storage.py. Many thanks to Dorneles Treméa.
+
+
+Changes in 1.1.10
+-----------------
+
+Several enhancements - all fully backwards compatible except this
+first one:
+
+* Changed the meaning of relative filenames in snapshot.conf to be
+  relative to the directory containing the snapshot.conf file, rather
+  than relative to the current working directory.  Note that this is a
+  potentially incompatible change from all previous versions.
+
+* Enhanced the checkds.py and backup.py scripts so that you no longer
+  need to explicitly use the snapshot.py tool to launch them.... They
+  can force the storage into snapshot mode themselves. The use of
+  snapshot.py is still recommended if you are scripting these tools -
+  it supports retrys if snapshot mode is not available immediately,
+  and allows more than one tool to be run inside the one snapshot.
+  
+* Rationalized the command line for snapshot.py. It now uses the same
+  switches as auto-snapshot-mode feature of checkds.py and
+  backup.py. All old scripts using old command line switches will
+  continue to work as before.
+  
+* Enhanced snapshot.py so that it can use direct file access to put
+  the storage into snapshot mode (even when Zope is not running).
+  This is the default method if snapshot.conf can not be opened.  If
+  you have an existing snapshot.conf and want to enable this option,
+  add a line containing the one word 'direct' on the end of
+  snapshot.conf
+
+* Changed backup tool to take a copy of the configuration directory as
+  part of a full backup.  Previously it only took a copy of the data
+  directory.
+
+* Several recent changes (in 1.1.8 and 1.1.7) to provide more robust
+  replication for storages that receive infrequent writes caused
+  problems for ZODB unit tests.  These extra safety precautions have
+  been inhibited when run under a unit test.
+  
+* Changed base class of DirectoryStorageError exception from
+  POSException.POSError to POSException.StorageError.  This solves
+  some minor problems with ZODB unit tests by being closer to the
+  behaviour of BDBStorage.
+  
+* Added Storage.py.... a new wrapper module to simplify access to
+  DirectoryStorage.  You no longer need to seperately construct the
+  Filesystem and Full objects.  Changed setup.py and
+  example_custom_zodb.py to use it.
+
+
+Changes in 1.1.9
+----------------
+
+* Fixed compatibility with the version of ZEO distributed with Zope
+  2.7
+
+* Updated doc/snapshot documentation to note that the meaning of
+  relative filenames in the ACCESS field of snapshot.conf will change
+  in a future version.  To avoid problems over the next few release
+  please either:
+
+  1. Check that you are using absolute filenames in the ACCESS field
+     of snapshot.conf
+
+  2. Keep an eye on the mailing list.
+
+
+Changes in 1.1.8
+----------------
+
+* Fixed another bug that can block replication on storages that
+  receive writes infrequently.  The low-risk fix for this bug changes
+  packing to always keep the two most recent transactions
+
+
+Changes in 1.1.7
+----------------
+
+* The documentation for the replica tool says:
+
+    You may also need to adjust your strategy for packing the master
+    storage.  replica.py uses the normal storage history to determine
+    which files need to be replicated, therefore your packing always
+    needs to keep enough history to cover back to the previous
+    replication event.
+
+  This strategy was insufficient for storages that receive writes
+  infrequently.  For example if you keep 30 days history when packing,
+  it was possible to block replication if no write transactions occur
+  for a 30 day period.  This has been fixed in the packing process.
+  The pack threshold date will be moved back if necessary to ensure it
+  is not after the date of the last transaction.
+
+* Tweaked some documentation based on user feedback.
+
+* Added Zope 2.7 ZConfig (zope.conf) support.  Thanks to Richard Waid.
+
+
+Changes in 1.1.6
+----------------
+
+* DirectoryStorage keeps redundant copies of some important
+  information for use in self-consistency checks.  This revision
+  includes a fix for a problem where one of these redundant copies was
+  being stored incorrectly in some cases.  This affects
+  DirectoryStorages copied from another storage using a
+  copyTransactionsFrom script, or anything else using the restore()
+  method.
+
+  This error will cause an exception in some fail-safe
+  self-consistency checks when an affected object is accessed.  The
+  exception is "DirectoryStorageError: serial mismatch".  This
+  corruption will certainly be detected by the checkds tool from any
+  previous version.
+
+  It would be possible to write a tool to fix this inconsistency in
+  old storages.  Please raise this on
+  dirstorage-users@lists.sourceforge.net if you think you might need
+  this.
+
+  Thanks to J C Lawrence for providing the bug report, and Paul
+  Winkler for testing the fix.
+
+
+Changes in 1.1.5
+----------------
+
+* Reverted a change in 1.1.4 beta, restoring support for the
+  SNAPSHOT_TIMESTAMP environment variable.  Thanks to Magnus Heino.
+
+
+Changes in 1.1.4
+----------------
+
+* Fix for possible deadlock reported by James E. Blair when
+  DirectoryStorage is used with some versions of ZEO. This deadlock
+  occurs in code which provides guarantees relating to the timestamps
+  of files in snapshot mode. This release fixes the deadlock by
+  dropping support for this timestamp guarantee.
+
+  So exactly what is this guarantee? Previously DirectoryStorage
+  ensured that all files written by the storage after leaving snapshot
+  mode would have a timestamp (mtime) which is after the time at which
+  it entered snapshot mode. This guarantee is critical for a
+  timestamp-driven backup scheme. The standard backup tool does not
+  use timestamps, therefore I hope this change will not inconvenience
+  anyone. However this feature was documented in doc/rawbackup. Anyone
+  with a custom backup system may want to review this release before
+  upgrading.
+
+  Thanks to Paul Winkler for all of the following changes:
+
+* Fix incorrect import in an error message in Posix Filesystem
+
+* Fix OverflowError in checkds.py
+
+* Added comments next to some likely exceptions.
+
+* Updated documentation for snapshot.py to state that the file must
+  contain an unencrypted password
+
+* Also suggested by Paul Winkler but not yet implemented: exec failure
+  error messages.
+
+
+Changes in 1.1.3
+----------------
+
+* Refined corner case of keepclass semantics. For objects that change
+  their class name during their history, keepclass checking now always
+  uses the class name of the most recent revision.
+
+* Fixed unit tests. Requires a sufficiently recent ZODB.  (work in
+  progress). Minor tweak were made to the main code to simplify the
+  unit tests.
+
+* Fixed minor bug in read-only support. Some methods provided by ZODB
+  base classes were not protected when read-only support was
+  enabled. Committing a transaction *was* protected, so I doubt this
+  matters to anyone. The .read_only storage attribute has been renamed
+  - use the isReadOnly() method if you need this.
+
+* Documentation improvements
+
+* Removed some backwards-compatibility cruft predating version 1.0.0.
+
+
+Changes in 1.1.2
+----------------
+  
+* Fixed major bug in snapshot mode, which can cause inconsistent
+  snapshots. On entry to snapshot mode the journal is flushed by
+  moving files into the main storage directory. However the journal
+  flusher may choose to delete a file rather than move it if the same
+  file has been re-written in a later journalled transaction. This can
+  happen if a transaction is committed concurrently with entry to
+  snapshot mode.
+
+  Mitigating factors:
+
+  1. This does not corrupt the main storage, although it can lead to
+     corrupt backups or replicas.
+
+  2. The corruption will certainly be detected by checkds. You do run
+     checkds on a snapshot before taking a backup, dont you?
+
+  3. A backup/replica may be corrupt due to a missing file.  Any
+     missing file will certainly be included the next backup/replica.
+
+  4. It can't happen in a ZEO server, thanks to ZEO's threading
+     architecture.
+
+
+Changes in 1.1.1
+----------------
+
+* Update to the restore method, used by the copyTransactionsFrom
+  script to copy old data from a different storage. A change to the
+  storage API in Zope 2.6 had gone unnoticed. Versions of Zope >=2.6
+  used with DirectoryStorage <1.1.1 would have caused an exception:
+
+    restore() takes exactly 6 arguments (7 given)
+
+
+Changes in 1.1.0
+----------------
+
+*  Minor documentation tweaks
+
+
+Changes in 1.1 beta 1
+---------------------
+
+None
+
+
+Changes in 1.1 alpha 2
+----------------------
+
+* Changed backup.py so that it is not a hard error if the incremental
+  backup script can not find an old revision to use as a
+  reference. This makes it easier to use standard backup scripts with
+  newly created storages. You sill get an ugly message on stderr, but
+  the script will not immediately exit with a non-zero exit code. No
+  backup file is created.
+
+* Fixed bug in replica.py and backup.py that caused backup files and
+  the old replica tar file to be written using 0777 permissions.
+  These are now written with 0640
+
+* Added read-only mode. Passing a read_only=1 parameter to the Full
+  constructor will prevent all changes. Packing is still allowed in
+  read-only mode.
+
+* Added support for synchronously flushing outstanding changes when
+  starting the filesystem layer.
+
+* Moved the undocumented db_pack method to a storage_pack_days
+  function in utils.py
+
+
+Changes in 1.1 alpha 1
+----------------------
+
+* Fixed bug that can cause "RuntimeError: maximum recursion depth
+  exceeded" during packing and checkds.
+
+* Fixed several bugs where some tools would not exit with a non-zero
+  exit code on failure.
+
+* Added client-driven replication tool, which uses ssh in the same
+  manner as cvs. This is efficient and robust. Changed LocalFilesystem
+  to ensure that replication events are atomic.
+  
+* Added -v and -q switches to all tools. -v to make them more verbose.
+  -q to hide all normal chatter, suitable for use under cron.
+
+* Changed the whatsnew.py tool (as used by replica and incremental
+  backup tools) to not include the file that contains the time of last
+  pack. The replication and incremental backups never delete files
+  (unlike packing), therefore it is safe to exclude it.  This also
+  means that we can do more sensible packing on the replica, (where
+  the master and replica are packed independantly).
+
+* Changed snapshot.py so that you dont need to explicitly include the
+  configuration filename on the command line every time. It assumes
+  the conventional location DIRECTORY/config/snapshot.conf
+
+* Changed checkds.py to display an object reference 'traceback' when
+  it encounters a dangling reference if the -v switch is given. A few
+  other messages changed, and a few others were added.
+
+* Added -t switch to snapshot.py to allow it to retry entering
+  snapshot mode if something else has locked it.
+
+* Changed the backup script so that it always writes an incremental
+  backup file after writing a full backup, even if that incremental
+  backup is empty. This ensures that every sequence number in the
+  backup index file has a corresponding incremental backup.
+
+* Changed the parser used for the configuration file to make it case
+  sensitive. Any other scripts that use the configuration file might
+  want to import utils.ConfigParser
+
+* DirectoryStorage uses a mark/sweep algorithm for packing. One
+  critical option is how it stores the mark bit. This version added a
+  new experimental scheme that stores this in a BTree. This scheme
+  seems about 80% faster, but during packing has overheads of roughly
+  20% disk space and 8M memory.  The disk space overhead need not be
+  on the same filesystem or same disk, and is reclaimed once packing
+  is finished. The memory overhead is mostly reclaimed, although a few
+  memory leaks remain. Any feedback on use of this scheme would be
+  appreciated.  To enable it, set [posix]/mark:Minimal.
+
+* Some extra flexibility for how much history we keep when packing.
+  Firstly, added support for classes that keep their history longer
+  than normal. Class names are registered in the [keepclass] section
+  of the config file, together with a specification of how much extra
+  time they should be kept. The following examples keep an extra week
+  of history for Zope DTML Methods never discard history for DTML
+  Documents. This feature is not particularly useful for these
+  standard document classes - it is more useful for classes that need
+  history for auditing.
+
+    [keepclass]
+    OFS.DTMLMethod.DTMLMethod = extra 7
+    OFS.DTMLMethod.DTMLDocument = forever
+
+  Secondly, a choice of policy on how much information is kept about
+  ancient transactions.  This transaction information is mostly used
+  for implementing undo.
+
+  detailed
+      The same policy as for version 1.0, FileStorage, and most other
+      storages. Full details are kept about the transaction in which
+      an object revision was written. This is still the default.
+
+  undoable
+      A space saving optimisation over 'detailed'. Packing will
+      discard transaction files older than the pack threshold. There
+      is no chance that these transactions are undoable, therefore the
+      main reason for keeping the file does not apply. The one
+      disadvantage to this approach occurs with ancient objects that
+      have not been modified since before the pack threshold
+      date. Their history (in the History tab in Zope's Management
+      Interface) will not contain the URL or username for the ancient
+      transaction in which they were modified. This option typically
+      gives a 5% space saving.
+
+* Changed the storage so that it does not raise a hard error if
+  something else has locked snapshot mode during startup. Instead the
+  storage starts up in snapshot mode. This has implications for anyone
+  else who is calling engage() or _lock methods.
+
+* Removed unnecessary complexity from the filesystem.*read_file()
+  methods.
+
+
+1.0.0
+-----
+
+None since beta 2
+
+
+1.0 beta 2
+----------
+
+* Fixed a race bug in relocations handling. This could potentially
+  cause data loss, but should be very hard to hit. I am not aware of
+  anyone affected by this bug.
+
+* Completed _have_flushed optimisation that had never been fully
+  implemented.
+
+* Updated comments on the limitations of dangling reference checking.
+
+* Added dumpdsf.py tool, for dumping the contents of individual
+  files. This is a useful tool for exploration.
+
+* Removed some redundant code.
+
+
+1.0 beta 1
+----------
+
+* Added better support for ZEO 2. 'extension methods' have been chosen
+  as the mechanism for extending the ZEO protocol, as needed to
+  support snapshot mode. This is still work in progress.
+
+* Some improvements for handling 'George Bailey' objects - objects
+  whose creation has been undone (because an undo operation has undone
+  the transaction is which they are created). These are strange
+  objects because in some contexts they act as if they do not exist in
+  the database (because they are in the same state as before they were
+  created) and in other contexts they act as if they do (because they
+  have a history)
+
+  - Added a new exception class POSGeorgeBaileyKeyError which is
+    raised when accessing a George Bailey object. This is a subclass
+    of POSKeyError, which is raised when accessing an object which
+    really does not exist.
+
+  - Improved dangling reference checking. This now correctly detects
+    references to George Bailey objects as dangling references. This
+    change means that dangling reference checking incurrs a measurable
+    performance loss - turn it off if you are willing to sacrifice
+    safety for speed.
+
+* A distutils-based compile script
+
+* A backwards-compatible change to the backup.py command line
+  parameters. If you have GNU date installed it is now possible to
+  say: backup.py inc "36 hours ago"
+
+* New documentation and web pages
+
+
+1.0 alpha 3
+-----------
+
+* Added a workaround for cases where clients do not always call the
+  close() method before terminating the process. Without this the
+  DirectoryStorage threads were never terminating, and the python
+  process would hang at shutdown
+
+* Changed the default id of the Zope management object to be
+  'DSToolkit'.  Shorter is better.
+
+* Added some more statistics to checkds, the storage checking tool.
+
+* Many major changes to snapshot.py and backup.py:
+
+  - snapshot.py now locks the directory. Tools running under it should
+    not lock it themselves.
+
+  - snapshot.py command line has changed. This now uses a
+    configuration file to specify the mechanism for entering snapshot
+    mode.
+
+  - A new tool whatsnew.py can be used to output the names of all
+    files modified in all transactions since a previous transaction
+    id. This executes in time proportional to the number of files it
+    has to output. This tool will be a useful component for backup and
+    replication scripts.
+
+  - backup.py no longer uses special features of gnu tar to find
+    recentry modified files when performing an incremental backup; It
+    now uses 'cpio' with 'whatsnew.py'. This change means that
+    incremental backups are now very fast - my daily incremental
+    backup executes in under 10s. (Full backups now use 'find' and
+    'cpio')
+
+  - The backup index file format has changed, because it now needs to
+    record a transaction id as well as timestamp. Anyone upgrading
+    from alpha 2 will have to perform a full backup before any
+    incremental backups will work.
+
+* Several minor optimisations.
+
+* A minor tweak to the packing algorithm. This makes a difference for
+  objects that have been written since the pack threshold time, but
+  never been reachable from the root. Such objects are not created in
+  normal operation, so for most people this change will have no
+  effect.  Such objects are now kept if they were written more
+  recently than the pack threshold time.
+
+* A change to the configuration file. [storage]/window_size has been
+  renamed to [storage]/min_pack_time. (No need to upgrade your config
+  file yet, it will continue using the old value if the new one is
+  missing)
+
+
+1.0 alpha 2
+-----------
+
+* Added checks during transaction commits to prevent committing
+  objects that contain dangling references. See the thread titled
+  'undo and zodb' for more information about this problem.
+  http://lists.zope.org/pipermail/zodb-dev/2002-September/003061.html
+  This feature is enabled by default.
+
+1.0 alpha 1
+-----------

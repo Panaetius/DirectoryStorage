@@ -1,0 +1,96 @@
+DirectoryStorage
+================
+
+DirectoryStorage is a Storage for ZODB, the object database used by
+`Zope`_.  It uses ordinary files and directories to store revisions of
+ZODB objects; one file per revision per object.
+
+The following features differentiate DirectoryStorage from other storages:
+
+1. A very simple file format; one file per revision per object. Your
+   data is not locked away inside an unfamiliar, opaque database.
+
+2. Designed for disaster-preparedness.  Restore service after a
+   disaster faster and with greater confidence.
+
+3. Storage Replication.  Efficiently and robustly keep an online
+   backup copy of your storage up to date with the latest changes from
+   the master.
+
+4. Designed for fault tolerance.  Any bugs (in DirectoryStorage, or
+   elsewhere) are less likely to irretrievably destroy your data.
+
+5. `But thats not all.  Read More...`_
+
+License
+-------
+
+DirectoryStorage is subject to the provisions of the GNU Lesser
+General Public License version 2.1
+
+
+Current Status
+--------------
+
+The current stable release of DirectoryStorage is `version 1.1.20`_,
+released March 2011.  
+
+Versions earlier than 1.1.4 have defects that can cause loss of
+service.  It is worth upgrading at your convenience if you are using
+anything earlier that 1.1.4.
+
+Versions earlier than 1.1.2 have a serious bug that can lead to data
+loss (but only if used without ZEO).  If you are using anything
+earlier than 1.1.2 then you should upgrade immediately.
+
+Current versions of ZEO have problems restoring full service with
+DirectoryStorage if the ZEO server restarts while the ZEO client
+remains running.  Full details in the `Zope tracker`_.
+
+
+Authors
+-------
+
+DirectoryStorage was developed and is currently being `maintained`_ by
+Toby Dickenson, `tdickenson@geminidataloggers.com`_. 
+Zope 3 support and other contributions by Philipp von Weitershausen.
+
+
+Links
+-----
+
+* `DirectoryStorage SourceForge project page`_ and `downloads`_
+
+* `FAQ`_
+
+* The `dirstorage-users`_ mailing list.
+
+* Browse the DirectoryStorage CVS repository; `source`_ and `documentation`_
+
+* `ZODB Wiki`_
+
+* `zope.org`_
+
+* Mailing lists: `dirstorage-users`_ and `zodb-dev`_
+
+* A somewhat out of date `feature comparison matrix`_ covering other ZODB storages
+
+.. _Zope: http://zope.org
+.. _But thats not all.  Read More...: features.html
+.. _feature comparison matrix: http://cvs.zope.org/ZODB3/Doc/storages.html?rev=1
+.. _version 1.1.20: https://sourceforge.net/projects/dirstorage/files/dirstorage/1.1.20/
+.. _the original advisory: http://sourceforge.net/mailarchive/forum.php?thread_id=5929936&forum_id=9987
+.. _Zope tracker: http://www.zope.org/Collectors/Zope/1724
+.. _dirstorage-users: http://lists.sourceforge.net/lists/listinfo/dirstorage-users
+.. _tdickenson@geminidataloggers.com: mailto:tdickenson@geminidataloggers.com
+.. _`ds2fs`: ds2fs.html
+.. _`maintained`: sponsor.html
+.. _www.altoforno.net: http://www.altoforno.net
+.. _DirectoryStorage SourceForge project page: http://sourceforge.net/projects/dirstorage/
+.. _downloads: http://sourceforge.net/project/showfiles.php?group_id=53818
+.. _FAQ: FAQ.html
+.. _source: http://dirstorage.cvs.sourceforge.net/dirstorage/
+.. _documentation: http://dirstorage.cvs.sourceforge.net/viewvc/dirstorage/DirectoryStorage/doc/
+.. _ZODB Wiki: http://www.zope.org/Wikis/ZODB/FrontPage
+.. _zope.org: http://zope.org
+.. _zodb-dev: http://lists.zope.org/mailman/listinfo/zodb-dev

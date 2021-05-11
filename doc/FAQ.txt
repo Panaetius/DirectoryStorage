@@ -1,0 +1,338 @@
+DirectoryStorage FAQ
+====================
+
+1. Why did you write a new storage?
+-----------------------------------
+
+I wanted to use a scalable storage that valued stability,
+manageability, and simplicity of maintenance over raw performance.
+
+
+2. Does this mean that DirectoryStorage is slow?
+------------------------------------------------
+
+Not necessarily.
+
+
+3. How widely used is DirectoryStorage?
+---------------------------------------
+
+Certainly many 10's of users, possibly 100's.
+
+That is far fewer users than FileStorage.  If your storage needs are
+undemanding than you should go with the majority, and stick to
+FileStorage.
+
+
+4. How stable is DirectoryStorage?
+----------------------------------
+
+DirectoryStorage's design focus on simplicity should cause it to have
+fewer critical problems than other storages.  There have been zero
+reported incidents of data loss through DirectoryStorage bugs.
+
+
+5. How scalable is DirectoryStorage?
+------------------------------------
+
+Most users find the limiting factor to be packing speed.
+DirectoryStorage needs to be packed to reclaim space from old
+revisions of objects, and objects that have been deleted.
+
+For large storages, packing is reported to be faster than one hour per
+gigabyte.  During that time you can still use the storage, read and
+write performance will be reduced a little. It is not possible to
+replicate into or out of a storage that is being packed.
+
+
+6. What is the best filesystem for DirectoryStorage?
+----------------------------------------------------
+
+The developers of this storage have always used reiserfs on linux.
+
+Very little testing has been performed on other filesystems.
+DirectoryStorage makes heavy use of the filesystem, so this choice is
+critically important to performance and stability.  We would
+appreciate any feedback on using DirectoryStorage with other
+filesystems.
+
+The filesystem characteristic that is particularly important to
+DirectoryStorage performance is efficiency of small files.
+DirectoryStorage uses alot of files that are exactly 8 bytes long.
+
+Early prototypes showed that NTFS can support DirectoryStorage with
+high performance.  Those benchmark have not been repeated since the
+win32 support was picked up in version 1.1.15.
+
+
+7. What are the best reiserfs mount options?
+--------------------------------------------
+
+``noatime``, not ``notail``. Some people find this suprising -- in
+most other applications ``notail`` gives a performance increase.
+
+
+8. How can I copy data from a FileStorage into a DirectoryStorage?
+------------------------------------------------------------------
+
+Use a copyTransactionsFrom script. As of version 1.1.12 an example is
+included in the distribution.  For earlier versions, use this one::
+
+  from ZODB.FileStorage import FileStorage
+  from DirectoryStorage.Full import Full
+  from DirectoryStorage.Filesystem import Filesystem
+
+  src = FileStorage('data/Data.fs',read_only=1)
+
+  fs = Filesystem('/this/is/the/path/to/my/storage')
+  dst = Full(fs)
+
+  dst.copyTransactionsFrom(src)
+
+  src.close()
+  dst.close()
+
+Edit the paths to point to your Data.fs and DirectoryStorage
+directory.
+
+You must run the script immediately after creating the
+DirectoryStorage.  It will not work if you have already started Zope
+with this new storage.
+
+You should take care that nothing is using the FileStorage while it is
+being read.
+
+
+9. How can I copy data from a DirectoryStorage into a FileStorage?
+------------------------------------------------------------------
+
+Use the `ds2fs`_ tool.
+
+
+10. Does this mean I can edit Zope content by editing ordinary files?
+---------------------------------------------------------------------
+
+Unfortunately no.  The files it creates are pickles.  The content of
+these files is meaningful to ZODB, but do not contain
+application-level content.  Of course it is perfectly possible for you
+to edit these - the effect is the same as editing a FileStorage
+Data.fs file.
+
+There are many other products that provide good ways of editing Zope
+content using a normal editor.
+
+
+11. Does this mean I can put my site into CVS?
+----------------------------------------------
+
+You can, but it may not do you any good.  See question 7.  If you are
+used to putting a Data.fs file in CVS, I recommend you tar the
+DirectoryStorage directory and put that in CVS.
+
+
+12. Why do I get an exception ``Invalid argument`` in ``sync_directory``?
+-------------------------------------------------------------------------
+
+You must be using a filesystem that does not support fsync on
+directory inodes, such as NFS, smbfs, or PVFS2.  As of version 1.1.13
+you can use the option [posix]/dirsync in the configuration file to
+turn off fsync of directory inodes, which should get you up and
+running.
+
+This option will affect the ACID characteristics of the storage.  It
+definitely may allow a transaction to get lost if the computer crashes
+soon after it is committed.  Other more serious effects may be
+possible too.  You may prefer to use a different filesystem if
+robustness is a priority.
+
+
+13. Why do I get a "DirectoryStorage Left snapshot mode" log entry after startup?
+---------------------------------------------------------------------------------
+
+It is perfectly normal.  LocalFilesystem starts up in snapshot mode as
+part of its recovery process, to allow it to asynchronously flush any
+outstanding journal entries and, if the storage was in snapshot mode
+when it shutdown, to recombine any data written since entering that
+snapshot.  This log entry appears when this work is complete.  In most
+cases there is very little work to do, and the message appears
+immediately.
+
+
+14. Why do I get log messages "Flushing 41 transactions (File limit reached)"?
+------------------------------------------------------------------------------
+
+It is perfectly normal.  DirectoryStorage uses a journal directory.
+All writes go into the journal directory first, and are "flushed" into
+the main storage directory sometime after a transaction has committed.
+Multiple transactions are flushed in a batch.  This is explained in
+doc/operation.  This log message indicates that it has started
+flushing a batch of transactions because there are now enough files to
+make it worthwhile.
+
+
+15. How does the performance of DirectoryStorage compare to other storages?
+---------------------------------------------------------------------------
+
+Relative to FileStorage, all figures approximate:
+
+* Reads are a factor of 1.5 slower.
+
+* Intermittant writes are a factor of 1.5 slower.
+
+* Packing is at least 8 times slower in version 1.0.
+
+This was measured with a 67M database, on reiserfs on linux.
+
+The quoted write performance is accurate for typical usage scenarios
+where there is not high write pressure. Under high write pressure the
+journal queue becomes a bottleneck, and performance degrades to 3
+times slower than FileStorage.
+
+Having said all of that, you may find that storage performance makes a
+negligible contribution to your overall system performance.
+
+16. How can I improve write performance?
+----------------------------------------
+
+DirectoryStorage is tuned for installations where there are more reads
+than writes. This tuning is appropriate for most ZODB/Zope installations,
+and the default settings are appropriate. However there are several
+configuration options available if you need better write performance
+either temporarily (maybe for importing data in bulk from some other
+source) or permanently (due to a characteristic of your application).
+
+a. In the ``config/settings`` file, change ``sync: 1`` to ``sync: 0``.
+   This eliminates the overhead of checking that all changes in one
+   transaction are on disk before starting the next. This improves
+   throughput. Note that this means your storage is likely to end up
+   corrupt if your operating system crashes while the storage is running.
+   (or soon after it finishes!).
+
+b. Change ``check_dangling_references: 1`` to ``0``. This disables extra
+   checks for possible ZODB or application bugs in write transactions,
+   and eliminates an I/O overhead.
+   Note that you may want to leave this option turned off in
+   production if you are using stable versions of ZODB and application
+   code, and storage write performance is critical to your application
+   performance.
+
+
+17. Why is packing so slow?
+---------------------------
+
+DirectoryStorage uses a mark and sweep algorithm.  It traverses the
+database marking every file it needs to keep, then traverses the
+directory structure unlinking unmarked files.  Each file needs one bit
+of storage for its mark flag.
+
+In the current implementation this mark flag is stored inside the file
+permission mask.  This leads to very fast reads (it has to read the
+inode anyway, so the mark bit is read 'for free') but slow writes
+(there are not many inodes per block, so it incurs excess IO
+overhead).
+
+Other storages use a similar algorithm but store state in memory.
+This limits their scalability.
+
+A number of alternative packing approaches are under consideration.
+The key to performance on any operation on a large body of data is to
+perform that operation incrementally.  Any operation that needs to
+scan all of the data is bound to scale linearly, or worse.  Both
+DirectoryStorage's and FileStorage's packing implementation currently
+do exactly that.
+
+
+18. Is there a danger of running out of file descriptors?
+---------------------------------------------------------
+
+No.  DirectoryStorage only opens one file at a time (per connection)
+and closes it again as soon as possible.
+
+
+19. Is there a danger of running out of inodes?
+-----------------------------------------------
+
+DirectoryStorage uses alot of tiny files, so this is certainly a risk
+on filesystems that are vulnerable to this problem. Note that reiserfs
+does not have this problem because it can create new inodes on demand.
+
+
+20. I have just packed my storage, old revisions have disappeared, but free disk space has not increased. Why?
+--------------------------------------------------------------------------------------------------------------
+
+You will find lots of files named \*-number-deleted in your storage
+directory.  This is a disaster recovery mechanism in case of bugs in
+the packing code.  Packing renames the files so that they are
+invisible to the rest of DirectoryStorage, and they will be eventually
+unlinked (and free space reclaimed) on a subsequent pack.  If a bug in
+the packing code should incorrectly remove a file, you can undo the
+pack by unrenaming these files.
+
+The number in the filename is a timestamp, and by default these
+deleted files are kept for 10 days.  This can be changed using the
+delay_delete parameter in the configuration file.
+
+The design rule at work here is that there shouldnt be a complicated
+process (mark/sweep packing) in charge of something that can do
+permanent damage (unlinking).
+
+
+21. I know about Full.py, but whats the story of Minimal.py?
+------------------------------------------------------------
+
+Minimal.py is a variant that does not support undo, incremental
+backups, replication, versions, or packing.
+
+It is ideal if you are using a ZODB as a short term throwaway cache,
+particulary after turning off md5 checks and fsync in the config file.
+It is not recommended for any use where long-term data durability is a
+requirement.
+
+I am not aware of anyone using Minimal in production.  It is only 50
+lines of code so we dont expect any problems.  However if any problems
+are discovered, they are unlikely to get fixed without a volunteer.
+
+
+22. Can I pack from the command line?
+-------------------------------------
+
+Using Zope? The best way is to use something like wget to pull Zope's
+``manage_pack`` url.
+
+If you cant do that, shut down all other processes using the storage
+and run a script like this::
+
+  import time
+  from DirectoryStorage.Full import Full
+  from DirectoryStorage.Filesystem import Filesystem
+  from ZODB.referencesf import referencesf as ZODB_referencesf
+  fs = Filesystem('/this/is/the/path/to/my/storage')
+  storage = Full(fs,synchronous=1)
+  # pack keeping 1 week of history
+  storage.pack(time.time()-60*60*24*7,ZODB_referencesf)
+
+Unlike most other `tools`_, you dont need to explicitly enter
+snapshot mode before running this. The storage will manage that for
+you.
+
+
+23. Can I force the storage into snapshot mode from the command line?
+---------------------------------------------------------------------
+
+Using version 1.1.10? Just use::
+
+   python snapshot.py --storage /this/is/the/path/to/my/storage
+
+If you are using version 1.1.9 or earlier then you can use the same
+technique, but the snapshot.py command-line is a little longer.  Also
+that version of snapshot.py needs to have Zope running.  If for any
+reason you are not, or can not run Zope, try this script::
+
+  from DirectoryStorage.Full import Full
+  from DirectoryStorage.Filesystem import Filesystem
+  fs = Filesystem('/this/is/the/path/to/my/storage')
+  storage = Full(fs,synchronous=1)
+  storage.close()
+
+.. _ds2fs: ds2fs.html
+.. _tools: tools.html

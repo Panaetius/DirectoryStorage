@@ -1,0 +1,25 @@
+<component prefix="DirectoryStorage.config">
+ 
+  <sectiontype name="directorystorage" datatype=".DirectoryStorage"
+               implements="ZODB.storage">
+     <description>
+       A full storage which keeps data in a directory structure using
+       a number of files.
+     </description>
+     <key name="read-only" datatype="boolean" default="false">
+      <description>
+        If true, only reads may be executed against the storage.  Note
+        that the "pack" operation is not considered a write operation
+        and is still allowed on a read-only storage.
+      </description>
+    </key>
+    <key name="path" required="yes">
+      <description>
+        Path name to the main storage directory.  The names for
+        supplemental files, including data files, configuration files,
+        and lock files, will be computed from this.
+      </description>
+    </key>
+  </sectiontype>
+ 
+</component>

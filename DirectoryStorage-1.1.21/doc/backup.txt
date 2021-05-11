@@ -1,0 +1,106 @@
+backup.py - DirectoryStorage backup tool
+========================================
+
+This document explains how to use DirectoryStorage's backup tool.
+
+DirectoryStorage has a very open file structure, so it is easy to
+implement your own backup tools, should you want to.  The standard
+tool works, but could well be improved.  The `doc/rawbackup.txt`_
+document explains the critical steps that any tool must perform.
+
+The backup.py tool must be run with the storage locked in snapshot
+mode.  This guarantees that it has a coherent view of the storage that
+is aligned with ZODB transactions, and that its files on disk will not
+change while the backup takes place.  Note that snapshot mode still
+allows full read/write access from any live storage.
+
+To take live backups while Zope is still running you will need to
+configure a config/snapshot.conf file.  See documentation on the
+`snapshot.py`_ tool for setting this up.  If you are using
+DirectoryStorage with something other than Zope you must either shut
+down any process using the storage, or use the storage API to trigger
+snapshot mode.
+
+Backup tar files and index files are written to the directory
+HOME/backups.  You may have to create this directory manually.
+
+
+Making a full backup
+--------------------
+
+The simplest full backup command is::
+
+  python backup.py --storage DIRECTORY full
+
+``DIRECTORY`` is the full path to your storage directory.  You can
+omit this if this tool is being run under the `snapshot.py`_ tool.  In
+versions before 1.1.10, use of the `snapshot.py`_ tool was mandatory.
+
+You may need to specify a full path to ``python`` or ``backup.py``
+depending on your installation.  They are omitted here for simplicity.
+
+This command will create a compressed tar file named backup-nnn.tgz in
+the directory HOME/backups.  nnn is an automatically maintained backup
+sequence number.
+
+It is also possible to specify a filename prefix, which is useful if
+you have more than one storage.  This will create a file named
+mystorage-nnn.tgz (rather than backup-nnn.tgz)::
+
+  python backup.py --storage DIRECTORY prefix mystorage full
+
+That ``full`` backup is a complete copy of all the storage data.  In
+version 1.1.10 and later, it also includes the configuration
+directory. For versions before that you need to make a seperate
+provision for storing the few small files in the HOME/config
+directory. Note that these files do not change during normal operation
+unless you edit them.
+
+
+Making an incremental backup
+----------------------------
+
+The backup tool maintains a list of backup sequence numbers and
+timestamps in the backup directory. This is used to determine which
+files to include in an incremental backup.
+
+A common command for performing an incremental backup is::
+
+  python backup.py --storage DIRECTORY prefix mystorage inc "36 hours ago"
+
+This command ignores any full or incremental backups taken in the
+previous 36 hours (those backup tapes may not be off-site yet) and
+creates an compressed tar file containing all files changed since the
+most recent backup before that.  The tar file name contains two
+numbers; the sequence number of this backup, and the sequence number
+of this previous reference backup.  For example if you run this
+command every day, on the tenth day it will create a file named
+mystorage-8-to-10.tgz containing two days of changes.
+
+The last parameter shown here is a value which is passed to the 'date'
+command.  It currently requires a GNU extension.  If your system does
+not have GNU ``date``, you can alternatively pass an absolute time in
+seconds since the epoch.
+
+
+Restoring a backup
+------------------
+
+Start from your most recent full backup, and then restore incremental
+backups in sequence number order.
+
+Note that the backup policy illustrated here creates redundant
+backups.  For example after restoring mystorage-8-to-10.tgz it is safe
+to skip ahead to mystorage-10-to-12.tgz.  The intermediate file
+mystorage-9-to-11.tgz need not be restored.  This provides safety
+unless two consecutive days backups are lost.
+
+
+Exit codes
+----------
+
+As of version 1.1, the backup tool will exit with a zero status code
+if and only if it has operated correctly.
+
+.. _doc/rawbackup.txt: rawbackup.html
+.. _snapshot.py: snapshot.html

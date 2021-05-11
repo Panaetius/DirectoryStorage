@@ -1,0 +1,20 @@
+DirectoryStorage keepclass feature
+==================================
+
+DirectoryStorage supports classes that need to keep their history
+longer than normal.  This is useful if you want to keep all revisions
+of a class for auditing purposes, or because you want to view extra
+history of a class using a Zope *history* tab.
+
+Class names are registered in the [keepclass] section of the config
+file, together with a specification of how much extra time they should
+be kept.  The following examples keep an extra week of history for
+Zope DTML Methods never discard history for DTML Documents.  This
+feature is of more use with application-specific class, and not
+particularly useful for these standard document classes.
+
+::
+
+  [keepclass]
+  OFS.DTMLMethod.DTMLMethod = extra 7
+  OFS.DTMLMethod.DTMLDocument = forever

@@ -1,0 +1,100 @@
+General Overview of DirectoryStorage Operation
+==============================================
+
+In this explanation HOME refers to the home directory of the storage,
+specified in the constructor.
+
+
+Transactions
+------------
+
+DirectoryStorage implements the high-level ZODB transaction semantics
+using low-level filesystem operations, many of which are not atomic.
+
+Transactional behaviour is implemented by os-specific classes derived
+from BaseFilesystem, such as PosixFilesystem. These classes use
+several real filesystem directories to create the appearance of a
+single large virtual directory in which a group of files can be
+replaced atomically.
+
+On starting a transaction it creates a new subdirectory of
+``HOME/journal/`` which used to hold whole files written in that
+transaction. The name of this transaction directory is derived from
+the transaction id such as
+``HOME/journal/working_034468c19bc9d9d5_temp``.
+
+During a transaction, files are written into the transaction
+directory. The name of each file in the transaction directory is the
+same as the name of the file being written to the storage, however the
+transaction directory does not have subdirectories.
+
+At transaction commit, it syncs all of the files written during that
+transaction, renames the transaction file from
+``HOME/journal/working_034468c19bc9d9d5_temp`` to
+``HOME/working_034468c19bc9d9d5_done``, and syncs the journal
+directory.  At this point all changes are durable. If there is a fatal
+error, the recovery process knows that the transaction needs to be
+rolled forwards, not backwards, because of the ``_done`` name.
+
+At transaction abort, the journal directory is emptied and removed.
+
+After transaction commit, it asynchonously flushes the files from the
+transaction directory into the database directory. The transaction
+directory can be removed once every file has been moved.
+
+Doing this asynchronously means that the most current version of the
+file is temporarily stored only in the journal directory. If the file
+has to be read, we open it from the journal not the usual database
+directory.
+
+Note that DirectoryStorage allows many transactions to build up in the
+journal directory, so that they can be flushed in batches. Batching of
+flushes is a significant optimisation because it allows many IO
+operations to be combined or eliminated, both by the storage and by
+the operating system.
+
+In order to prevent journal overload only a small number of batches of
+transactions are allowed to remain unflushed. Writes are blocked to
+prevent this limit being exceeded.
+
+
+Format
+------
+
+The main database directory is ``HOME/A``.  Files are not stored
+directly in that directory to prevent it growing too large.  They are
+stored in a subdirectory whose name is derived from the filename, as
+defined by the `format`_.  (See `doc/formats.txt`_)
+
+
+Full
+----
+
+The Full storage stores three types of file. Files named ``tXXXXX``,
+where ``XXXXX`` is the 16-character hex-encoded transaction id,
+contain details about each transaction including a list of modified
+oids.
+
+Files ``oYYYYY.c``, where ``YYYYY`` is the 16-character hex-encoded
+oid, are 8 byte long files which contain the current serial number of
+the oid.
+
+Files ``oYYYYY.XXXXX``, where ``YYYYY`` is the oid, and ``XXXXX`` is
+the serial number, contain data about this revision of this
+object. (Note that serial numbers are chosen to be identical to
+transaction ids)
+
+A small number of other files are used to store information such as
+the last used oid, last used serial number, and last pack time.
+
+
+Minimal
+-------
+
+This storage only uses one type of file. Files are named
+``o.YYYYY.d``, where ``YYYYY`` is the 16-character hex-encoded oid,
+and contain all information about the current revision of this
+object. No historical revisions are stored.
+
+.. _format: formats.html
+.. _doc/formats.txt: formats.html

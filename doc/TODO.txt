@@ -1,0 +1,54 @@
+TODO
+====
+
+Probably wont be done soon without a volunteer or sponsorship:
+--------------------------------------------------------------
+
+* Packing for Minimal.
+
+* win32 support
+
+* Objects that store little/no history and dont block undo, for page
+  hit counters, serial numbers, etc. This has implications for backup
+  and replication too.
+
+* Interruptible/Resumable packing. Allowing packing to be stopped,
+  perhaps because it takes too long to finish over one night, then
+  restarted again later.
+    
+* Dont stay in snapshot mode during the whole packing process?
+
+* Implement support for MVCC to eliminate read conflict errors.
+  http://zope.org/Wikis/ZODB/MultiVersionConcurrencyControl.
+
+* sys_reiser4 integration. This offers potentially huge improvements
+  to write performance, and potentially moderatate increases for
+  reads.
+
+* Enforced quotas. Quota accounting based on object references.
+
+* Add a through-the-web way to access checkds.py
+
+* Record number of objects and total byte size during packing.  Use
+  this to implement a sensible __len__ and getSize
+   
+* The ds2fs tools currently does not share all of DirectoryStorage's
+  fault tolerance. Fix this.
+
+
+Rejected ideas:
+---------------
+
+* Multithreaded packing - probably not. I can now fill 90% of a cpu
+  during packing, so I/O is probably no longer a bottleneck.
+
+* Automatic file compression? - No. initial experiments show there is
+  little to be gained.
+
+* No, the locking for packing is already sufficiently complicated.
+
+* bdbstorage-style incremental packing; An efficient packing algorithm
+  removes most old data, and a slower alternative is run less
+  frequently to remove the remainder. In bdbstorage this uses
+  reference counts, which means it is not fault tolerant and requires
+  a frenzy of housekeeping. I suspect that is unavoidable.

@@ -1,0 +1,48 @@
+<h1 tal:replace="structure here/manage_page_header" />
+<h1 tal:replace="structure here/manage_tabs" />
+
+     <tal:block condition="here/isDirectorystorage" i18n:domain="dirstorage">
+
+       <p class="form-help">
+         This object provides DirectoryStorage management tools.
+       </p>
+
+       <div class="form-help">
+         <div class="label" i18n:translate="">Snapshot mode</div>
+         <div class="field" tal:condition="here/currentSnapshotCode">
+           The storage is currently in snapshot mode
+           <em tal:content="here/currentSnapshotCode">foo/bar</em>.
+         </div>
+         <div class="field" tal:condition="not:here/currentSnapshotCode">
+           The storage is currently not in snapshot mode.
+         </div>
+       </div>
+
+       <form action="leaveSnapshot" method="post"
+             tal:condition="python:here.currentSnapshotCode()=='user/toolkit'">
+         <input type="submit" value="Leave Snapshot Mode">
+       </form>
+
+       <form action="enterSnapshot" method="post"
+             tal:condition="not:here/currentSnapshotCode">
+         <input type="submit" value="Enter Snapshot Mode">
+       </form>
+
+     </tal:block>
+
+     <tal:block condition="not:here/isDirectorystorage">
+
+<p class="form-help">
+This class can provide DirectoryStorage management tools if it is
+added to a DirectoryStorage. (in this type of storage it is a harmless
+waste of space)
+</p>
+
+<p class="form-help">
+If you are using ZEO, please re-read doc/install in the
+DirectoryStorage distribution.
+</p>
+
+    </tal:block>
+
+<h1 tal:replace="structure here/manage_page_footer" />

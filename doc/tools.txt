@@ -1,0 +1,41 @@
+DirectoryStorage Tools
+======================
+
+Please note that this documentation applies to version 1.1.10, the
+current beta release. It recommends some command-line options that are
+not supported in the current stable releases.
+
+`mkds.py`_
+  A tool to create a new empty storage. Use of this tool is explained
+  in the installation instructions.
+
+`snapshot.py`_
+  A tool to force a storage into snapshot mode. All of the following
+  tools need to be run when the storage is in snapshot mode.
+
+`checkds.py`_
+  A tool to check for corruption.
+
+`backup.py`_
+  A tool to create a backup.
+
+`replica.py`_
+  A replication tool. New in version 1.1.
+
+`ds2fs.py`_
+  A tool to convert a DirectoryStorage to a FileStorage Data.fs.
+
+`dumpdsf.py`_
+  A tool to dump the contents of a storage file.
+
+`Salvaging data from a damaged storage`_
+  A reminder about why the backup and replication tools are a good idea.
+
+.. _mkds.py: install.html
+.. _snapshot.py: snapshot.html
+.. _checkds.py: checkds.html
+.. _backup.py: backup.html
+.. _replica.py: replica.html
+.. _ds2fs.py: ds2fs.html
+.. _dumpdsf.py: dumpdsf.html
+.. _Salvaging data from a damaged storage: disaster.html

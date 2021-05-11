@@ -1,0 +1,46 @@
+DirectoryStorage Disaster Recovery
+==================================
+
+Help! My hard disk ate my storage! What do I do?
+------------------------------------------------
+
+The right option is to switch to a `replica`_ or restore a `backup`_.
+
+You do have one, don't you?
+
+If not, read on.
+
+
+DirectoryStorage Salvage
+------------------------
+
+Please note that this process has never been tested by the
+DirectoryStorage developers (and hopefully never will be).
+
+After performing any recovery necessary on the disk or filesystem, you
+may want to try:
+
+1. If the directory structure is lost and you have files in
+   lost+found, use the `dumpdsf.py`_ tool on each of them.  The
+   correct file name can can be reconstructed from redundant
+   information in the file header.
+
+2. DirectoryStorage should carry on like FileStorage, accesses within
+   your application may raise a POSKeyError exception for missing
+   files or DirectoryStorageError if the md5 checksums are
+   bad. Recovery from there could be the same as FileStorage; remove
+   the bad objects from within the application.
+
+3. The `checkds.py`_ tool can be used to find the files with bad md5
+   checksums.  You may want to inspect them, or remove them if
+   POSKeyError is easier to repair than DirectoryStorageError.
+
+4. If you are if you are an expert in the storage directory layout you
+   may consider patching missing objects by copying individual files
+   from elsewhere in the storage, or from a slightly-out-of-date
+   backup.
+
+.. _replica: replica.html
+.. _backup: backup.html
+.. _dumpdsf.py: dumpdsf.html
+.. _checkds.py: checkds.html

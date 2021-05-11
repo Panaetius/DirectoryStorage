@@ -1,0 +1,44 @@
+ds2fs.py - Convert DirectoryStorage to FileStorage tool
+=======================================================
+
+Usage::
+
+  ds2fs.py [--storage DIRECTORY] /path/to/output/Data.fs
+
+
+Operation
+---------
+
+This tool converts a DirectoryStorage storage directory to a
+FileStorage Data.fs file.
+
+This tool needs to use snapshot mode to ensure that no other storage
+process is using the main storage directory. To use snapshot mode you
+will need to either manually shut down those processes, or, if you are
+using Zope, configure the `snapshot.py`_ tool to communicate with
+Zope.  Zope will not lose read or write access to the storage.
+
+The ``--storage DIRECTORY`` option may be omitted if `checkds.py`_ is
+being run under the `snapshot.py`_ tool.  In versions before 1.1.10,
+use of `snapshot.py`_ was mandatory.
+
+This tool is new in version 1.1.12.
+
+
+Caution
+-------
+
+This tool operates using transaction metadata to list object
+revisions, and pass the same information into FileStorage.
+
+You may want to use the `checkds.py`_ tool to check the integrity of
+your DirectoryStorage before using ds2fs. This tool does not check md5
+checksums or verify the database integrity; it copies data blindly.
+
+DirectoryStorage fault-tolerance features allow DirectoryStorage to
+continue normal operation even if some transaction metadata is lost
+for any reason, however these objects will get missed by this tool.
+Again, this type of corruption should get detected by checkds.py.
+
+.. _snapshot.py: snapshot.html
+.. _checkds.py: checkds.html

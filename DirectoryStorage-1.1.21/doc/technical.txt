@@ -1,0 +1,28 @@
+DirectoryStorage Technical Reference
+====================================
+
+Overview
+--------
+
+DirectoryStorage keeps data using many files and directories.  There
+is documentation on the `high level directory structure`_ including a
+description of how the transactional storage semantics are layered on
+top of file and directory operations.
+
+
+File Formats
+------------
+
+There is documentation on the detailed `file format`_ used for the files
+that store information about an object revision and transactions.
+
+
+Formats
+-------
+
+The precise arrangement of files into directories is known as a
+`format`_.
+
+.. _high level directory structure: operation.html
+.. _file format: fileformats.html
+.. _format: formats.html

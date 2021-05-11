@@ -1,0 +1,121 @@
+DirectoryStorage Features
+=========================
+
+1. A very simple file format; one file per revision per object. Your
+   data is not locked away inside an unfamiliar, opaque database.
+
+2. Disaster-preparedness. DirectoryStorage tools have been designed to
+   allow you to restore service after a disaster quickly and with
+   confidence:
+
+   * Rebust replication... see below.
+
+   * A storage checking tool, to detect any problems early.
+     (`doc/checkds.txt`_) (DirectoryStorage is the only ZODB storage to
+     have shipped a complete checking tool in 'version 1'). The
+     checking tool can be run on a live storage.
+
+   * A robust incremental backup tool (`doc/backup.txt`_).
+     DirectoryStorage is the only ZODB storage to apply transactional
+     requirements (ACID) to online backup. If you suffer a crash that
+     means you need to resort to a backup, you dont have any doubt
+     that the 'most recent' backup is complete, even if the crash
+     occurred during the backup process.
+
+3. Storage Replication. A tool to efficiently and robustly copy
+   changes from a master storage into a backup replica storage. This
+   can minimise data loss after a hardware failure.
+   (`doc/replica.txt`_)
+
+4. Fault-tolerant construction.
+
+   * Have you ever seen a POSKeyError exception when using some other
+     ZODB storage, and the only option was to restore a backup?
+     DirectoryStorage is the only storage to have checks to prevent
+     committing transaction containing dangling references, one
+     possible cause of a POSKeyError.
+
+   * More than 50% of the bugs in FileStorage that can cause data loss
+     have been located in its packing implementation.
+     DirectoryStorage uses a delayed-deletion strategy that allows
+     data to be recovered should it be incorrectly deleted during
+     packing.
+
+    * For other problems, DirectoryStorage's design focus on
+      simplicity is more likely to give you a fair chance of
+      correcting the problem without having to resort to a backup.
+
+5. Support for filesystems with posix semantics is mature.
+
+6. Preliminary support for win32 - finishing this requires a
+   volunteer. Please report any success or problems to the
+   `dirstorage-users`_ mailing list.
+
+7. Full.py: A storage which supports undo (but not versions, yet). It
+   needs occasional packing to remove unreachable objects and old
+   revisions of reachable objects.
+
+8. Fast startup and shutdown. Independent of database size. Whether or
+   not the storage was shutdown cleanly.
+
+9. Constant memory usage, even during packing.
+
+10. Good redundancy of data. All object state (optionally) carries an
+    md5 checksum.
+
+11. Snapshot mode. After entering snapshot mode, the main database
+    directory is a self-consistent, up to date, read-only snapshot of
+    the storage state. Zope does not lose read/write access to the
+    Storage; writes are spooled in a secondary directory. This is
+    ideal for performing maintenance on the database state without
+    shutting down the storage. (`doc/snapshot.txt`_)
+
+12. Read-only mode.
+
+13. Defense against human error.
+
+    * Thorough file locking to prevent corruption due to incorrect
+      concurrent access. For example, starting two storage processes
+      on the same directory, or replicating into a directory where a
+      live storage is running.
+
+    * The replication tool checks that the secondary storage is an
+      older version of the primary storage. This prevents data loss by
+      replicating into the wrong place (for users who have more than
+      one independant storages), or if the secondary storage contains
+      some writes that are not present in the primary.
+
+14. Support for classes that keep their history longer than normal.
+    This is useful if you want to keep all revisions of a class for
+    auditing purposes, or because you want to view extra history of a
+    class using a Zope 'history' tab. (`doc/keepclass.txt`_)
+
+15. Support for keeping less information about ancient transactions.
+    This is typically a 5% space saving if you dont mind Zope's
+    history tab showing nothing for objects that havent been modified
+    since the last pack.
+
+16. Support for many different types of filesystems. Filesystems which
+    are most efficient with many files in one directory, and also for
+    filesystems which are not. (see `doc/formats.txt`_)
+
+17. A tool for debugging and exploring. (`doc/dumpdsf.txt`_)
+
+18. An option to use familiar filesystem tools for maintaining the
+    database. For example:
+
+    * Take an incremental backup using tar.
+
+    * Make crucial persistent objects immutable using file
+      permissions.
+
+    * Check the actual size of individual ZODB objects using ls.
+
+.. _doc/checkds.txt: checkds.html
+.. _doc/backup.txt: backup.html
+.. _doc/replica.txt: replica.html
+.. _dirstorage-users: http://lists.sourceforge.net/lists/listinfo/dirstorage-users
+.. _doc/snapshot.txt: snapshot.html
+.. _doc/keepclass.txt: keepclass.html
+.. _doc/formats.txt: formats.html
+.. _doc/dumpdsf.txt: dumpdsf.html

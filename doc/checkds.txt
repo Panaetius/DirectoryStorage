@@ -1,0 +1,25 @@
+checkds.py - DirectoryStorage checking tool
+===========================================
+
+Usage::
+
+  checkds.py [--storage DIRECTORY]
+
+
+Operation
+---------
+
+This tool performs a thorough check on the database structure.  It
+reports any errors, and several mildly interesting statistics.
+
+This tool needs to use snapshot mode to ensure that no other storage
+process is using the main storage directory.  To use snapshot mode you
+will need to either manually shut down those processes, or, if you are
+using Zope, configure the `snapshot.py`_ tool to communicate with
+Zope.  Zope will not lose read or write access to the storage.
+
+The ``--storage DIRECTORY`` option may be omitted if checkds.py is
+being run under the `snapshot.py`_ tool. In versions before 1.1.10,
+use of snapshot.py was mandatory.
+
+.. _snapshot.py: snapshot.html

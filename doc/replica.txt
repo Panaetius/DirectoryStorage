@@ -1,0 +1,104 @@
+replica.py - DirectoryStorage Replication Tool
+==============================================
+
+Usage::
+
+  replica.py [options] [user@]MasterHost:MasterDirectory ReplicaDirectory
+
+  MasterHost, MasterUser
+      User and host name for ssh to connect to the host that runs the
+      replication master.
+
+  MasterDirectory
+      Data directory on the replication master.
+
+  ReplicaDirectory
+      Data directory on the local replica.
+
+Options are:
+
+  -v
+      Make it more verbose.
+
+  -q
+      Make it less verbose.
+
+  -d directory
+      The DirectoryStorage source installation directory on the remote
+      machine. This is only needed if different to the installation
+      directory on the local machine.
+
+
+Operation
+---------
+
+This tool can be used to safely, efficiently and robustly update a
+local replica with the differences between a remote master storage and
+the local replica. Replication is efficient because it uses the normal
+storage history information to determine which files ned to be copied.
+Replication is robust because the replication event is atomic, and
+aligned with transaction boundaries on the master storage. Replication
+is safe because the tool performs several checks to eliminate the most
+common replication errors.
+
+There must not be any storage process (ZEO server, etc) using the
+local replica storage during the replication event. This means that
+replication is suitable for maintaining a backup or cold standby
+storage. If you want to have a hot standby, you will need to ensure
+the the replica storage is shut down before starting the replica, and
+restarted again after.
+
+
+Exit Code
+---------
+
+This tool will exit with a zero status code if and only if it has
+operated correctly.
+
+
+Installation
+------------
+
+1. First get your master DirectoryStorage working as you want it.
+
+2. Set up a ``config/snapshot.conf`` file on the master.  The
+   replication tool needs to force the master storage briefly into
+   snapshot mode.
+
+3. This tool uses ssh. Set up ssh such that the user which runs the
+   storage on the replica machine can log in to the user account of
+   the user which runs the storage on the master, with the correct
+   PYTHONPATH environment variable. Setting up ssh is outside the
+   scope of this document.
+
+4. Create an initial copy of the storage from the master onto the
+   replica. Note that it doesnt matter if this copy is not current.
+   There is no standard way to do this; just restore a backup, or
+   shutdown the master storage and scp the whole directory.
+
+5. As a first test, run the replica.py command on the replica machine,
+   substituting your host and directory names. Within a few seconds it
+   should say ``"Replica complete"``.  The -v switch may be helpful if
+   there is a problem.
+
+6. That command needs to be run regularly to ensure that the replica
+   is kept up to date. cron is a good way to do this.  cron normally
+   directs any ouput into an email. If you are replicating every night
+   then this may be what you want, but it would be too much if you are
+   replicating every minute. Adding the -q switch will ensure the
+   replication process is silent unless there is a problem. Note that
+   you will be notified that replication has failed while the master
+   storage is in snapshot made, being packed or backed up.
+
+7. You may also need to adjust your strategy for packing the master
+   storage. replica.py uses the normal storage history to determine
+   which files need to be replicated, therefore your packing always
+   needs to keep enough history to cover back to the previous
+   replication event.
+
+8. Note that replication requires that the only difference between the
+   two storages is that the master contains some newer transactions
+   that are not present on the replica. If you test your replica by
+   starting a storage process, it is prudent to use read-only mode to
+   ensure that no transactions are written on the replica during that
+   test.

@@ -1,0 +1,26 @@
+DirectoryStorage Sponsorship
+============================
+
+DirectoryStorage development has been sponsored by:
+
+  * Toby Dickenson
+
+  * `Gemini Data Loggers`_ - robustness testing and replication.
+
+  * Mediatria s.r.l., Milano (I) `www.altoforno.net`_ - the `ds2fs`_
+    tool for converting DirectoryStorage to FileStorage.
+
+  * `Max Planck Institut fuer Kognitions- und Neurowissenschaften`_ -
+    Zope 3 support and other contributions by Philipp von
+    Weitershausen
+
+There are currently no sponsors of further DirectoryStorage
+maintenance, development, and support.  If you find DirectoryStorage
+valuable, or the free technical support to be useful, then you are
+encouraged to consider `supporting this project`_ through donations.
+
+.. _Gemini Data Loggers: http://www.geminidataloggers.com/
+.. _www.altoforno.net: http://www.altoforno.net
+.. _ds2fs: ds2fs.html
+.. _Max Planck Institut fuer Kognitions- und Neurowissenschaften: http://www.cbs.mpg.de/
+.. _supporting this project: http://sourceforge.net/donate/index.php?group_id=53818

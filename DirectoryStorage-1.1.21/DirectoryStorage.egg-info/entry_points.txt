@@ -1,0 +1,11 @@
+[console_scripts]
+dirstorage_snapshot = DirectoryStorage.snapshot:main
+dirstorage_replica = DirectoryStorage.replica:main
+dirstorage_dumpdsf = DirectoryStorage.dumpdsf:main
+dirstorage_ds2fs = DirectoryStorage.ds2fs:main
+dirstorage_whatsnew = DirectoryStorage.whatsnew:main
+dirstorage_mkds = DirectoryStorage.mkds:main
+dirstorage_fs2ds = DirectoryStorage.fs2ds:main
+dirstorage_backup = DirectoryStorage.backup:main
+dirstorage_checkds = DirectoryStorage.checkds:main
+

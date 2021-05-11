@@ -1,0 +1,9 @@
+Version 0.05 was released in 2000 by Petru Paler, petru@paler.net,
+formerly ppetru (at) coltronix.com. This version was a successful
+proof of the concept that a one-file-per-object scheme could provide a
+high performance ZODB storage, if backed by the right filesystem.
+
+Versions 0.10 and later were released in 2002 by Toby Dickenson,
+tdickenson@geminidataloggers.com. This version added robust
+transactions, undo, snapshot mode, and support for filesystems that do
+not efficiently handle large directories,

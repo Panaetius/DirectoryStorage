@@ -1,0 +1,203 @@
+DirectoryStorage Installation
+=============================
+
+1. Non-ZEO Zope Installation
+----------------------------
+
+1. Note that DirectoryStorage needs at least Zope 2.6.0 or at least
+   Zope 3.1.0, respectively.
+
+2. On Windows, you will need have the win32all extensions available.
+   If using the ActiveState ActivePython distribution these are
+   included as standard.  If using the www.python.org distribution of
+   python, you will need a `seperate download from the win32all
+   sourceforge project`_.
+
+3. Compile DirectoryStorage's C extensions with the following standard
+   distutils command::
+
+     $ python setup.py build
+
+4. Install DirectoryStorage.  Choose one of the following options:
+
+   a. The following command installs ``DirectoryStorage`` into your
+      standard Python libraries location::
+
+        $ python setup.py install
+
+      Note that you may need to use a full path to ``python``, or name
+      a specific version such as ``python2.3``.  Use the same version
+      of python that you are using for Zope.
+
+   b. You can also install DirectoryStorage into specific Zope
+      installations only.  Use the following command to do that::
+
+        $ python setup.py install --home=/path/to/your/zope
+
+      This will install the ``DirectoryStorage`` package into the
+      ``/path/to/your/zope/lib/python/`` directory.
+
+   c. Finally you can install DirectoryStorage for specific instances
+      only, using this command::
+
+        $ python setup.py install --home=/path/to/the/zope-instance
+
+      This will work with Zope 2.7+ and 3.1+.  It installs the
+      ``DirectoryStorage`` package into the
+      ``/path/to/the/zope-instance/lib/python`` directory.
+
+5. Unless you installed DirectoryStorage into the standard Python
+   libraries location, add its installation location to your
+   PYTHONPATH environment variable, e.g.::
+
+     $ export PYTHONPATH=/path/to/your/zope/lib/python:$PYTHONPATH
+
+   This is to ensure that DirectoryStorage's tools_ such as
+   ``mkds.py`` can find the DirectoryStorage installation.
+
+   If you will be using the replica_ tool, check that the
+   DirectoryStorage installation path is in both the local and the
+   remote environments.
+
+6. Before configuring your Zope instances, choose the directory that
+   will hold the storage state.  Do not actually create a subdirectory
+   for the storage yet; this will be done automatically.  It can be
+   convenient to give the storage it own filesystem if your storage is
+   going to be large.  The choice of filesystem type is important for
+   performance and stability; the recommended filesystem for Linux is
+   reiserfs.
+
+7. Configure DirectoryStorage as the ZODB storage of your Zope
+   instance.  If you are using Zope 2.7+ (incl. 3.1+) and
+   DirectoryStorage 1.1.7 or later, it is possible to configure your
+   storage by editing zope.conf.
+
+   a. On Zope 2, remove the ``zodb_zb`` section that refers to
+      FileStorage, and replace it with::
+
+        %import DirectoryStorage
+        <zodb_db main>
+          # Main DirectoryStorage database
+          <directorystorage>
+              path /this/is/the/path/to/my/storage
+              read-only off
+          </directorystorage>
+          mount-point /
+        </zodb_db>
+
+     Alternatively, it is possible to configure your storage by
+     creating a custom_zodb.py file in your INSTANCE_HOME directory.
+     This is the only option for Zope 2.6.x, or DirectoryStorage 1.1.6
+     and earlier.  This method mostly works under Zope 2.7.x too, but
+     you will not be able to access the storage management interface.
+
+     Create your custom_zodb.py file in your INSTANCE_HOME directory
+     based on the sample file included at
+     DirectoryStorage/doc/example_custom_zodb.py.  (If you are not
+     using INSTANCE_HOME in Zope, then put this file in the Zope
+     directory, next to the start script).  Note that you need to
+     change the path in the zope.conf or custom_zodb.py files to point
+     to the directory containing your storage data.  That directory
+     needs to be writable by the Zope process, and probably should not
+     be readable or writable by anyone else.
+
+   b. On Zope 3, replace the ``zodb`` section of your ``zope.conf``
+      file with the following one::
+
+        %import DirectoryStorage
+        <zodb>
+          <directorystorage>
+               path $DATADIR/dirstorage
+               read-only off
+          </directorystorage>
+        </zodb>
+
+8. The next step is to create the directories and support files for
+   the storage.  Run::
+
+     python mkds.py /this/is/the/path/to/my/storage Full <format>
+
+   where ``/this/is/the/path/to/my`` already exists, but ``storage``
+   does not.  The directory names should not contain any spaces.
+   format depends on your filesystem.
+
+   bushy
+       Use the bushy format for conventional filesystem like ext3 on
+       Linux.
+
+   chunky
+       Use the chunky format if your filesystem is efficient with
+       large directories, such as reiserfs or JFS on Linux.
+
+   Other information on formats is available in `doc/formats.txt`_.
+
+9. Register DirectoryStorage management facilities:
+
+   a. On Zope 2, copy the ``DirectoryStorageToolkit`` package to your
+      instance's ``Products`` directory.
+
+   b. On Zope 3, copy the ``DirectoryStorage-overrides.zcml`` file
+      from the ``DirectoryStorage`` package or your extracted tarball
+      to your instance's ``etc/package-includes`` directory.
+
+10. If you are running Zope under its own user id, be aware that
+    DirectoryStorage by default creates some files with permissions of
+    u=rw,g=r.  You probably want to create give Zope its own group,
+    and restrict membership of that group to users who are trusted to
+    read raw pickles.
+
+11. Start Zope.
+
+12. On Zope 2, create an instance of the DirectoryStorageToolkit class
+    somewhere.  You can use this object to force the storage in and
+    out of snapshot mode.  You will need this object if you are using
+    any of the external tools without stopping Zope (for example,
+    tools for taking a backup, or checking the storage for errors).
+
+    On Zope 3, the standard *ZODB Control* screen under the *Manage
+    Process* facility provides the same functionality when
+    DirectoryStorage is installed and configured through ZCML.
+
+13. During operation you may want to run the storage checking tool,
+    checkds.py, to ensure your database contains no errors.  This uses
+    snapshot mode to perform online checks.  snapshot.py is a tool to
+    force the storage into snapshot mode from the command line,
+    suitable for running from cron.  For more information run
+    "snapshot.py".
+
+14. You may want to subscribe to the dirstorage-users mailing list at
+    `http://lists.sourceforge.net/lists/listinfo/dirstorage-users`_ to
+    be sure of keeping up to date with DirectoryStorage issues.  This
+    is also the best place for DirectoryStorage questions and answers.
+    This list is currently low volume.
+
+15. If you are using a beta version: Put a note in your diary for two
+    weeks from today to send a works-for-me email to
+    dirstorage-users@lists.sourceforge.net.
+
+
+2. ZEO
+------
+
+DirectoryStorage works well with ZEO 2.
+
+The version of ZEO distributed with ZODB 3.1 (the ZODB version that
+ships with Zope 2.6) requires a patch to support 'Extension Methods',
+which are are needed to be able to access the snapshot feature across
+the ZEO link.  You can find the patch in `doc/extension.diff`_.  ZODB
+3.2 (the ZODB version that ships with Zope 2.7) and higher versions
+already include this patch.
+
+
+3. Non-Zope ZODB (STANDALONE-ZODB)
+----------------------------------
+
+I have not used this distribution.  It should 'just work'.  I would be
+grateful for any feedback.
+
+.. _tools: tools.html
+.. _replica: replica.html
+.. _seperate download from the win32all sourceforge project: http://sourceforge.net/project/showfiles.php?group_id=78018
+.. _doc/formats.txt: formats.html
+.. _http://lists.sourceforge.net/lists/listinfo/dirstorage-users: http://lists.sourceforge.net/lists/listinfo/dirstorage-users
+.. _doc/extension.diff: extension.diff

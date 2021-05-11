@@ -1,0 +1,75 @@
+dumpdsf.py - DirectoryStorage Exploration Tool
+==============================================
+
+Usage::
+
+  dumpdsf.py FILENAME [FILENAME...]
+
+  FILENAME
+      The name of a file to dump
+
+Operation
+---------
+
+This tool can be used to dump the internal structure of any
+DirectoryStorage file.  This structure is defined in
+doc/fileformats.txt.
+
+This tool is useful for exploring, and fault-finding.  Example
+Output::
+
+  A $ dumpdsf.py o000/000/000/001/A771.0349DEA41A25853B
+  o000/000/000/001/A771.0349DEA41A25853B
+    data for oid 000000000001A771 rev 0349DEA41A25853B
+    proper filename o000/000/000/001/A771.0349DEA41A25853B
+    transaction
+      timestamp Mon Dec 30 10:12:06 2002
+      filename t034/9DE.A41A25853B
+    previous rev
+      rev 0349DEA19D6C7919
+      filename o000/000/000/001/A771.0349DEA19D6C7919
+    pickle '((U\nOFS.Folderq\x01U\x06Folderq\x02tq\x03Nt.}q\x04(U\x02ao'
+    references
+      oid 000000000001E295 at o000/000/000/001/E295.c
+      oid 000000000001E2F9 at o000/000/000/001/E2F9.c
+
+  A $ dumpdsf.py t034/9DE.A41A25853B
+  t034/9DE.A41A25853B
+  transaction 0349DEA41A25853B
+    timestamp Mon Dec 30 10:12:06 2002
+    proper filename t034/9DE.A41A25853B
+    user ' tdickenson'
+    description '/extest/addDTMLDocument'
+    objects modified in this transaction
+      oid 000000000001E2F9 at o000/000/000/001/E2F9.0349DEA41A25853B
+      oid 000000000001A771 at o000/000/000/001/A771.0349DEA41A25853B
+
+  A $ dumpdsf.py o000/000/000/001/E2F9.0349DEA41A25853B
+  o000/000/000/001/E2F9.0349DEA41A25853B
+    data for oid 000000000001E2F9 rev 0349DEA41A25853B
+    proper filename o000/000/000/001/E2F9.0349DEA41A25853B
+    transaction
+      timestamp Mon Dec 30 10:12:06 2002
+      filename t034/9DE.A41A25853B
+    previous rev
+      rev 0000000000000000
+      filename o000/000/000/001/E2F9.0000000000000000
+    pickle '((U\x10OFS.DTMLDocumentq\x01U\x0cDTMLDocumentq\x02tq'
+
+
+Limitations
+-----------
+
+* Filenames in its output assume you are using chunky format.
+
+* Some special case values for some fields are not fully decoded.
+  That last example above shows a previous revision field of all
+  zeros. That means this is the first revision of the object,
+  therefore it is misleading for it to also display a previous
+  revision filename.
+
+* It dumps the first 40 bytes of a pickle. This is usually enough to
+  be able to pick out the class name, even if you cant read the rest
+  of the pickle.
+
+* Probably many more.

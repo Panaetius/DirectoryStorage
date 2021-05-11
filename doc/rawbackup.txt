@@ -1,0 +1,82 @@
+How to Implement your own DirectoryStorage Backup Procedure
+===========================================================
+
+Taking a backup of a DirectoryStorage consists of forcing the storage
+into snapshot mode, then taking a copy of the files in the database
+directory. The essential directories are HOME/config, and HOME/A.
+
+While in snapshot mode the storage still has write access to the
+database; writes go into the directories HOME/journal and HOME/B. You
+do not need to take copes of these in your backup.
+
+Note that DirectoryStorage now has a `standard backup tool`_ (see
+`doc/backup.txt`_).
+
+To implement your own full backup procedure:
+
+1. Take a copy of the HOME/config directory. This directory is small,
+   and is not modified by a running DirectoryStorage.
+
+2. If you know the storage is running, force it into snapshot mode.
+   Lock the file HOME/misc/sublock to ensure that noone else will
+   modify the directory during your backup, then check for the
+   existense of a file HOME/misc/snapshot to prove that the database
+   really is a snapshot. For more details on this process, see
+   `doc/snapshot.txt`_.
+
+3. Take a full copy of the HOME/A directory. This directory contains
+   the full database content, complete as of the time where it entered
+   snapshot mode.
+
+4. DO NOT backup the directories HOME/B or HOME/journal. These
+   directories contain data from transactions that were committed
+   after entering snapshot mode.
+
+5. Unlock HOME/misc/sublock and leave snapshot mode.
+
+To implement your own incremental live backup:
+
+1. If your incremental backup system uses timestamps, record the time
+   now. You will need it to perform your next incremental backup.
+
+2. Force it into snapshot mode, as described above.
+
+3. Take an incremental copy of HOME/A using the last-modified time, or
+   other means. An incremental backup need not record which files have
+   been deleted.
+
+4. Leave snapshot mode
+
+
+Shutdown Storages
+-----------------
+
+It is possible for a storage to be shut down and the file
+misc/snapshot does not exist. In this state the main directory is not
+a coherent snapshot. This can happen if:
+
+  * The storage process terminates without calling .close()
+
+  * The storage process calls .close() but the storage can not enter
+    snapshot mode promptly. This may happen if it is closed
+    immediately after leaving snapshot mode.
+
+  * The quick_shutdown configuration option has been turned on.
+
+When the DirectoryStorage is shut down in this state there are two
+options for taking a backup:
+
+  * Start the storage. The storage will roll forwards any complete
+    transactions, and you can then proceed as normal. This is the
+    easiest approach.
+
+  * Take a copy of *everything*, including HOME/B and
+    HOME/journal. Note that this option is incompatible with
+    incremental backups. This option is appropriate if something has
+    crashed and your want a copy of the wreckage. You can only do this
+    if DirectoryStorage is shut down, or you are using a system like
+    LVM to give a filesystem-level snapshot.
+
+.. _standard backup tool: backup.html
+.. _doc/backup.txt: backup.html
+.. _doc/snapshot.txt: snapshot.txt

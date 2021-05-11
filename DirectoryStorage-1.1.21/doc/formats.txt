@@ -1,0 +1,55 @@
+Formats
+=======
+
+DirectoryStorage keeps data using one file per revision per object.
+Each file is stored in a directory. The precise arrangement of files
+into subdirectories is known as a *format*. The following formats are
+available:
+
+
+bushy
+-----
+
+If you are using a filesystem that is inefficient with directories
+containing larger than a few hundred items. This is optimal for most
+conventional filesystems, such as ext2 on linux. In this format each
+object is given its own directory nested inside 8 levels of
+subdirectory. Each revision of an object has its own file in that
+directory.
+
+
+chunky
+------
+
+If you are using a filesystem that is most efficient with directories
+containing tens of thousands of subdirectories, or hundreds of
+thousands of files. This is optimal for filesystems such as reiser3 or
+JFS on linux. In this format, one subdirectory is shared by up to
+65000 objects. That subdirectory is nested inside 4 levels of
+subdirectory.
+
+
+lawn
+----
+
+If you are using a filesystem that is efficient with huge directories.
+Each object gets its own directory directly off the database home
+directory. Only a few filesystems support a suitably large number of
+subdirectories in a single subdirectory - XFS, NTFS, possibly others.
+I would be interested in any tests using this format on one of these
+filesystems. If you are using one of these filesystems but dont have
+time to perform tests then I recommend you use 'chunky'.
+
+
+flat
+----
+
+Everything goes in one big directory. This is handy when studying how
+DirectoryStorage works because it gives the least complicated
+directory layout. It is probably not suitable for production use.
+
+
+bushy4
+------
+
+This format is no longer supported.

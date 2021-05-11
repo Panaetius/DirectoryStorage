@@ -1,0 +1,126 @@
+DirectoryStorage File Formats
+=============================
+
+Directory Structure
+-------------------
+
+HOME/config/
+    A directory of read-only configuration information
+
+HOME/config/settings
+    The main configuration file
+
+HOME/config/identity
+    A unique name for this storage generated randomly when the storage
+    is created
+
+HOME/journal/
+    A directory used during writes
+
+HOME/A/
+    main database directory
+
+HOME/B/
+    secondary database directory used when in snapshot mode
+
+HOME/misc/lock
+    main lock file. This file is locked when a DirectoryStorage is
+    managing this whole directory tree.
+
+HOME/misc/sublock
+    secondary lock file. This file must be locked by any process that
+    wants to write to HOME/A/, or by a process that want to guarantee
+    that noone else it writing too it.
+
+HOME/misc/snapshot
+    This file exists only when HOME/A/ is a coherent snapshot. That
+    is, when it contains only whole transactions. (If you want to use
+    HOME/A/ as a snapshot, lock HOME/misc/sublock before checking this
+    file to guarantee that it remains a snapshot for as long as you
+    need it to be)
+
+
+Object File Format
+------------------
+
+file[0:4]
+    A magic number which identifies this as an object revision file.
+
+file[4:8]
+    redundant copy of the file length (master copy maintained by the
+    filesystem inode)
+
+file[8:16]
+    redundant copy of the oid. (master copy is in the filename)
+
+file[16:24]
+    If this object revision was created by copying a previous revision
+    in an 'undo', this is the serial number of the revision which was
+    copied. otherwise zero.
+
+file[24:40]
+    reserved for future use; should be set to zero.
+
+file[40:56]
+    md5 checksum of subsequent data, or all zeros if the checksum has
+    not been calculated.
+
+file[56:64]
+    Serial number number of the previous revision of this object This
+    file must exist for all transactions later than the most recent
+    pack.
+
+file[64:72]
+    Serial number of this revision. This is redundant when using a
+    'full' storage; the master copy is in the filename.
+
+file[72:]
+    pickle, or empty if this revision is the undoing of the object's
+    creation.
+
+
+Transaction File Format
+-----------------------
+
+file[0:4]
+    A magic number which identifies this as a transaction file
+
+file[4:8]
+    Redundant copy of the file length. (master copy is in the
+    filesystem inode)
+
+file[8:16]
+    Redundant copy of transaction id. (master copy is in the filename)
+
+file[16:24]
+    Reserved for future use; should be set to zero.
+
+file[24:32]
+    Transaction id of the previous transaction. (The file for this
+    transaction must exist for all transactions since the last pack)
+
+file[32:48]
+    md5 checksum of subsequent data, or all zeros if the checksum has
+    not been calculated.
+
+file[48:50]
+    Length of user section
+
+file[50:52]
+    Length of description section
+
+file[52:54]
+    length of extension section
+
+file[54:58]
+    length of oids section
+
+file[58:60]
+    length of version section
+
+file[60:]
+    The user, description, extension, oids, and version blocks. The
+    lengths of each block are given in fields above. The first three
+    blocks are defined by the storage API. The oids block is a list of
+    oids modified by this transaction. The version block must be zero
+    length; no DirectoryStorages support versions yet.
