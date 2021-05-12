@@ -19,9 +19,6 @@ from .DirectoryStorageTestBase import *
 # threading._VERBOSE = 1
 
 
-
-
-
 class DirectoryStorageFullTests:
     def checkRememberOid(self):
         # create an object

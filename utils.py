@@ -69,20 +69,20 @@ except ImportError:
 from configparser import ConfigParser as BaseConfigParser
 from configparser import Error as ConfigParserError
 
-z16 = "\0" * 2
-z64 = "\0" * 8
-z128 = "\0" * 16
+z16 = b"\0" * 2
+z64 = b"\0" * 8
+z128 = b"\0" * 16
 
 # the first four bytes of object files, used by Full and Minimal
-OMAGIC = "\xbd\xb8*q"
+OMAGIC = b"\xbd\xb8*q"
 
 # the first four bytes of transaction files, used only by Full
-TMAGIC = "G@\x07v"
+TMAGIC = b"G@\x07v"
 
 # what used to be the first four bytes of oid current revision
 # pointer file, used only by Full. today we care more about file
 # size
-CMAGIC = "\013\376\350\354"
+CMAGIC = b"\013\376\350\354"
 
 
 def oid2str(oid):

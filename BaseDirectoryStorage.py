@@ -55,7 +55,7 @@ class BaseDirectoryStorage(BaseStorage):
         if len(self._prev_serial) != 8:
             raise DirectoryStorageError("Bad stored serial")
 
-        self._ts = TimeStamp(self._prev_serial.encode())
+        self._ts = TimeStamp(self._prev_serial)
         try:
             self._last_pack = self.filesystem.read_database_file("x.packed")
         except FileDoesNotExist:
@@ -146,7 +146,7 @@ class BaseDirectoryStorage(BaseStorage):
         return "not measured"
 
     def lastTransaction(self):
-        return self._prev_serial.encode()
+        return self._prev_serial
 
     def close(self):
         # Shut down the filesystem.
@@ -166,12 +166,7 @@ class BaseDirectoryStorage(BaseStorage):
         return pickle, serial
 
     def loadBefore(self, oid, tid):
-        stroid = oid2str(oid)
-        data, serial2 = self._load_object_file(oid)
-        self._check_object_file(oid, serial2, data, self._md5_read)
-        pickle = data[72:]
-        serial = data[64:72]
-        return pickle, serial
+        raise NotImplementedError()
 
     def loadEx(self, oid, version):
         assert not version
@@ -227,12 +222,12 @@ class BaseDirectoryStorage(BaseStorage):
         if len(e) > 65535:
             raise DirectoryStorageError("too much extension data")
 
-        if tid <= self._prev_serial.encode():
+        if tid <= self._prev_serial:
             raise DirectoryStorageError("descending serial numbers in _begin")
         td = self._transaction_directory = self.filesystem.transaction(tid)
-        td.u = str(u)
-        td.d = str(d)
-        td.e = str(e)
+        td.u = u
+        td.d = d
+        td.e = e
         if 0:
             # calculate transactions throughput figure
             self._times.append(time.time())
@@ -375,7 +370,7 @@ class BaseDirectoryStorage(BaseStorage):
             )
             t = upper_limit
         t = timestamp2tid(t)
-        if t > self._prev_serial.encode() and self.min_pack_time > 0:
+        if t > self._prev_serial and self.min_pack_time > 0:
             # Dont allow the pack time to be later that the most recent
             # transaction. This avoids problems for code such as incremental backups
             # and replication that uses 'the most recent transaction' as a datum, and
@@ -383,7 +378,7 @@ class BaseDirectoryStorage(BaseStorage):
             # If the min pack time is zero then we certainly dont care about replication
             # or backup. We are probably inside a ZODB unit test, which assumes
             # this safety precaution does not exist. inhibit it
-            t = self._prev_serial.encode()
+            t = self._prev_serial
             logger.log(
                 loglevel_BLATHER,
                 "pack time threshold moved back to " "date of last write transaction",

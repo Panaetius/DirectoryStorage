@@ -128,7 +128,7 @@ class BaseFilesystem(FilesystemPrimitives):
                 "Cant use %r, it doesnt exist" % (self.dirname,)
             )
         self.config = ConfigParser()
-        self.config.readfp(StringIO(self.read_file("config/settings")))
+        self.config.readfp(StringIO(self.read_file("config/settings").decode()))
         if self.config.get("structure", "version") not in ["0.11"]:
             raise DirectoryStorageError("Bad version number")
         self.use_sync = self.config.getint("filesystem", "sync")

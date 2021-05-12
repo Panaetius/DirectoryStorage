@@ -10,7 +10,6 @@ import pickle
 import pickle as cPickle
 import random
 import re
-import string
 import struct
 import sys
 import time
@@ -45,6 +44,7 @@ class Full(BaseDirectoryStorage, ConflictResolvingStorage):
         if len(data) == 72:
             # This object contains a zero length pickle. that means the objects creation was undone.
             raise POSGeorgeBaileyKeyError(oid)
+
         return data, serial
 
     def _get_current_serial(self, oid):
@@ -54,6 +54,7 @@ class Full(BaseDirectoryStorage, ConflictResolvingStorage):
             data = self.filesystem.read_database_file("o" + stroid + ".c")
         except FileDoesNotExist:
             return None
+
         return _fix_serial(data, oid)
 
     def _begin(self, tid, u, d, e):
@@ -64,7 +65,13 @@ class Full(BaseDirectoryStorage, ConflictResolvingStorage):
         td.refoids = {}
 
     def loadBefore(self, oid, tid):
-        data, serial2 = self._load_object_file(oid, tid)
+        data, serial2 = self._load_object_file(oid)
+
+        while serial2 >= tid:
+            serials_plus_pickle = data[56:]
+            previous_serial = serials_plus_pickle[:8]
+            data, serial2 = self._load_object_file(oid, serial=previous_serial)
+
         self._check_object_file(oid, serial2, data, self._md5_read)
         pickle = data[72:]
         serial = data[64:72]
@@ -90,6 +97,7 @@ class Full(BaseDirectoryStorage, ConflictResolvingStorage):
             # number.  First, attempt application level conflict
             # resolution, and if that fails, raise a ConflictError.
             data = self.tryToResolveConflict(oid, old_serial, serial, data)
+
             if data:
                 conflictresolved = 1
             else:
@@ -206,7 +214,7 @@ class Full(BaseDirectoryStorage, ConflictResolvingStorage):
                     good_old_oids[refoid] = 1
 
         # Record the oid of every modified object in the transaction file
-        ob = string.join(list(td.oids.keys()), "")
+        ob = b"".join(list(td.oids.keys()))
 
         u, d, e = td.u, td.d, td.e
         assert self._prev_serial < self.get_current_transaction()
@@ -806,13 +814,13 @@ class Full(BaseDirectoryStorage, ConflictResolvingStorage):
         total = 0
         empty = 1
         pretend = 0
-        for file in fs.listdir(directory):
+        for file_ in fs.listdir(directory):
             empty = 0
-            path = os.path.join(directory, file)
-            if file.endswith("-deleted"):
+            path = os.path.join(directory, file_)
+            if file_.endswith("-deleted"):
                 # this file is already awaiting delayed deletion
                 try:
-                    time_deleted = int(string.split(file, "-")[-2])
+                    time_deleted = int(file_.split("-")[-2])
                 except (ValueError, IndexError) as e:
                     # Wierd file name. delete it
                     time_deleted = 0
