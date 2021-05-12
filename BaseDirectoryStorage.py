@@ -36,6 +36,8 @@ class BaseDirectoryStorage(BaseStorage):
     ):
         if argv is not _some_unique_object:
             sys.exit("ERROR: things have changed. read DirectoryStorage/doc/changes")
+        self._db_transform = None
+        self._db_untransform = None
         self.filesystem = filesystem
         self._is_read_only = read_only
         # Tell the filesystem that it is being used inside a storage. That makes
@@ -370,7 +372,7 @@ class BaseDirectoryStorage(BaseStorage):
             )
             t = upper_limit
         t = timestamp2tid(t)
-        if t > self._prev_serial and self.min_pack_time > 0:
+        if t.encode() > self._prev_serial and self.min_pack_time > 0:
             # Dont allow the pack time to be later that the most recent
             # transaction. This avoids problems for code such as incremental backups
             # and replication that uses 'the most recent transaction' as a datum, and

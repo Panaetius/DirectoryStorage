@@ -431,7 +431,7 @@ class LocalFilesystem(BaseFilesystem):
             self._snapshot_ack.release()
             logger.log(self.ENGINE_NOISE, "Entered snapshot mode %r" % (code,))
             # Create the file which indicates that A is a snapshot
-            self.write_file("misc/snapshot", code)
+            self.write_file("misc/snapshot", code.encode())
         finally:
             self._snapshot_lock.release()
 

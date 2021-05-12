@@ -47,6 +47,11 @@ class Full(BaseDirectoryStorage, ConflictResolvingStorage):
 
         return data, serial
 
+    def registerDB(self, db):
+        self.db = db
+        self._db_transform = db.transform_record_data
+        self._db_untransform = db.untransform_record_data
+
     def _get_current_serial(self, oid):
         # could use some caching here?
         stroid = oid2str(oid)
@@ -108,7 +113,11 @@ class Full(BaseDirectoryStorage, ConflictResolvingStorage):
         body = self._make_file_body(oid, tid, old_serial, data)
         refoids = []
         if self.check_dangling_references:
-            ZODB_referencesf(data, refoids)
+            actual_data = data
+
+            if self._db_untransform:
+                actual_data = self._db_untransform(actual_data)
+            ZODB_referencesf(actual_data, refoids)
         self._write_object_file(oid, tid, body, refoids)
         if conflictresolved:
             return b"rs"
