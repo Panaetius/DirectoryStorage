@@ -8,7 +8,7 @@ import pickle as cPickle
 
 from ZODB import POSException
 from ZODB import TimeStamp
-from ZODB.ConflictResolution import ConflictResolvingStorage, ResolvedSerial
+from ZODB.ConflictResolution import ConflictResolvingStorage
 
 from .BaseDirectoryStorage import BaseDirectoryStorage
 
@@ -20,13 +20,19 @@ from .utils import ZODB_referencesf, logger
 
 class Full(BaseDirectoryStorage,ConflictResolvingStorage):
 
-    def _load_object_file(self,oid):
-        serial = self._get_current_serial(oid)
+    def _load_object_file(self,oid, serial=None):
+        if serial is None:
+            serial = self._get_current_serial(oid)
         if serial is None:
             raise POSException.POSKeyError(oid)
         if len(serial)!=8:
+            stroid = oid2str(oid)
             raise DirectoryStorageError('Bad current revision for oid %r' % (stroid,))
-        data = self.filesystem.read_database_file('o'+oid2str(oid)+'.'+oid2str(serial))
+
+        try:
+            data = self.filesystem.read_database_file('o'+oid2str(oid)+'.'+oid2str(serial))
+        except FileDoesNotExist:
+            raise POSException.POSKeyError(oid)
         if len(data)==72:
             # This object contains a zero length pickle. that means the objects creation was undone.
             raise POSGeorgeBaileyKeyError(oid)
@@ -47,6 +53,13 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
         td = self._transaction_directory
         td.oids = {}
         td.refoids = {}
+
+    def loadBefore(self, oid, tid):
+        data, serial2 = self._load_object_file(oid, tid)
+        self._check_object_file(oid,serial2,data,self._md5_read)
+        pickle = data[72:]
+        serial = data[64:72]
+        return pickle,serial,tid
 
     def store(self, oid, serial, data, version, transaction):
         if self._is_read_only:
@@ -79,7 +92,7 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
             ZODB_referencesf(data,refoids)
         self._write_object_file(oid,tid,body,refoids)
         if conflictresolved:
-            return ResolvedSerial
+            return b'rs'
         else:
             return tid
 
@@ -232,7 +245,7 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
                   'id'           : tid }
             if lene:
                 try:
-                    e = cPickleloads(data[60+lenu+lend:60+lenu+lend+lene])
+                    e = cPickle.loads(data[60+lenu+lend:60+lenu+lend+lene])
                     d.update(e)
                 except:
                     pass
@@ -736,6 +749,7 @@ class Full(BaseDirectoryStorage,ConflictResolvingStorage):
     _pointer_file_re = re.compile('^o[A-F0-9]{16}.c$')
     _object_file_re = re.compile('^o[A-F0-9]{16}.[A-F0-9]{16}$')
     _transaction_file_re = re.compile('^t[A-F0-9]{8}.[A-F0-9]{8}$')
+
     def _remove_unmarked_objects(self,now,mc,directory='A'):
         fs = self.filesystem
         total = 0

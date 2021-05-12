@@ -80,7 +80,7 @@ CMAGIC = '\013\376\350\354'
 
 def oid2str(oid):
     assert len(oid)==8
-    return binascii.b2a_hex(oid).upper()
+    return binascii.b2a_hex(oid).decode().upper()
 
 class DirectoryStorageError(POSException.StorageError):
     pass

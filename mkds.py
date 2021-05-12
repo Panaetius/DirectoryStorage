@@ -76,7 +76,7 @@ def make_identity():
     # choose a random string to use as a database identity
     try:
         # use the system random device if it has one
-        return binascii.b2a_hex(open('/dev/urandom').read(16))
+        return binascii.b2a_hex(open('/dev/urandom', "rb").read(16)).decode()
     except EnvironmentError:
         # use a hash of python's entropy gatherer
         return binascii.b2a_hex(hashlib.md5(uuid.uuid4().hex).digest())

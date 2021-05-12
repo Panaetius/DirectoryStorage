@@ -119,7 +119,7 @@ class PosixFilesystem(LocalFilesystem):
                 chunk = os.read(f,1024*16)
                 if not chunk:
                     break
-                chunks.append(chunk)
+                chunks.append(chunk.decode())
             c = ''.join(chunks)
         finally:
             os.close(f)

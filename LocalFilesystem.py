@@ -43,8 +43,8 @@ class LocalFilesystem(BaseFilesystem):
         self._broken_flusher = 0
         self._flush_lock = threading.RLock()
         self._unflushed = []
-        self._async_work_queue = queue.queue()
-        self._backlog_tokens = queue.queue()
+        self._async_work_queue = queue.Queue()
+        self._backlog_tokens = queue.Queue()
         for i in range(self.config.getint('journal','backlog')):
             self._backlog_tokens.put(None)
 
@@ -197,7 +197,10 @@ class LocalFilesystem(BaseFilesystem):
                 try:
                     return self.read_file(os.path.join('B',name))
                 except FileDoesNotExist:
-                    return self.read_file(os.path.join('A',name))
+                    try:
+                        return self.read_file(os.path.join('A',name))
+                    except FileDoesNotExist:
+                        raise
             else:
                 # If we are not in snapshot mode, or have not flushed the journal
                 # since entering snapshot mode, then directory A is the only
