@@ -1,15 +1,19 @@
 # you need to edit this script to do anything useful.
 
-import sys, getopt, os, traceback
+import getopt
+import os
+import sys
+import traceback
 
-from ZODB.FileStorage import FileStorage
-from DirectoryStorage.utils import DirectoryStorageError
-from DirectoryStorage.Full import Full
 from DirectoryStorage.Filesystem import Filesystem
+from DirectoryStorage.Full import Full
+from DirectoryStorage.utils import DirectoryStorageError
+from ZODB.FileStorage import FileStorage
+
 
 def main():
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "vq", ['storage='])
+        opts, args = getopt.getopt(sys.argv[1:], "vq", ["storage="])
     except getopt.GetoptError:
         # print help information and exit:
         sys.exit(usage())
@@ -19,28 +23,34 @@ def main():
     verbose = 0
     storage = None
     for o, a in opts:
-        if o == '-v':
+        if o == "-v":
             verbose += 1
-        elif o == '-q':
+        elif o == "-q":
             verbose -= 1
-        elif o == '--storage':
+        elif o == "--storage":
             storage = a
-    try: fs2ds(storage, args[0], verbose)
-    except DirectoryStorageError:
-        sys.exit(traceback.format_exception_only(sys.exc_info()[0],sys.exc_info()[1])[0].strip())
-
-def fs2ds(fspath,dspath,verbose):
-    if not os.path.exists(dspath):
-        sys.exit('ERROR: %s not exists' % dspath)
     try:
-        fs = FileStorage(fspath, read_only = 1)
+        fs2ds(storage, args[0], verbose)
+    except DirectoryStorageError:
+        sys.exit(
+            traceback.format_exception_only(sys.exc_info()[0], sys.exc_info()[1])[
+                0
+            ].strip()
+        )
+
+
+def fs2ds(fspath, dspath, verbose):
+    if not os.path.exists(dspath):
+        sys.exit("ERROR: %s not exists" % dspath)
+    try:
+        fs = FileStorage(fspath, read_only=1)
         dst = Full(Filesystem(dspath))
-        zodb_verbose = (verbose>=2)
+        zodb_verbose = verbose >= 2
         dst.copyTransactionsFrom(fs, zodb_verbose)
     finally:
         fs.close()
         dst.close()
-    print('Imported to', dspath, file=sys.stderr)
+    print("Imported to", dspath, file=sys.stderr)
 
 
 def usage():
@@ -53,7 +63,10 @@ Options are:
     --storage DIRECTORY
 
         The full path to the storage File (Data.fs).
-""" % os.path.basename(sys.argv[0])
+""" % os.path.basename(
+        sys.argv[0]
+    )
 
-if __name__=='__main__':
+
+if __name__ == "__main__":
     main()

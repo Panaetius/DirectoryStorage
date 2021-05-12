@@ -3,53 +3,64 @@
 # This library is subject to the provisions of the
 # GNU Lesser General Public License version 2.1
 
-import os, struct, stat, errno,  time, sys, threading, weakref, uuid
+import errno
+import os
+import stat
+import struct
+import sys
+import threading
+import time
+import uuid
+import weakref
 from posix import fsync
 
+from BTrees.OIBTree import OIBTree
 from zc.lockfile import LockFile
-from ZODB.FileStorage import FileStorage
 from ZODB import POSException
 from ZODB.DB import DB
-from BTrees.OIBTree import OIBTree
+from ZODB.FileStorage import FileStorage
 
-from .utils import ConfigParserError, DirectoryStorageError
-from .utils import z64, z128, oid2str, logger, loglevel_BLATHER
-from .LocalFilesystem import LocalFilesystem, LocalFilesystemTransaction, FileDoesNotExist
+from .LocalFilesystem import (FileDoesNotExist, LocalFilesystem,
+                              LocalFilesystemTransaction)
+from .utils import (ConfigParserError, DirectoryStorageError, logger,
+                    loglevel_BLATHER, oid2str, z64, z128)
+
 
 class PosixFilesystem(LocalFilesystem):
-
-    def __init__(self,dirname):
-        LocalFilesystem.__init__(self,dirname)
+    def __init__(self, dirname):
+        LocalFilesystem.__init__(self, dirname)
         if self.use_sync:
             try:
-                self._use_dirsync = self.config.getint('posix','dirsync')
+                self._use_dirsync = self.config.getint("posix", "dirsync")
                 if not self._use_dirsync:
-                    logger.log(self.ENGINE_NOISE,
-                               'fsync suppressed for directories. '
-                               'Transactions may or may not be durable.')
+                    logger.log(
+                        self.ENGINE_NOISE,
+                        "fsync suppressed for directories. "
+                        "Transactions may or may not be durable.",
+                    )
             except ConfigParserError:
                 self._use_dirsync = 1
         else:
             self._use_dirsync = 0
 
-    def transaction(self,tid):
-        return PosixFilesystemTransaction(self,tid)
+    def transaction(self, tid):
+        return PosixFilesystemTransaction(self, tid)
 
-    def exists(self,name):
-        return os.path.exists(os.path.join(self.dirname,name))
+    def exists(self, name):
+        return os.path.exists(os.path.join(self.dirname, name))
 
-    def isdir(self,name):
-        return os.path.isdir(os.path.join(self.dirname,name))
+    def isdir(self, name):
+        return os.path.isdir(os.path.join(self.dirname, name))
 
-    def mkdir(self,dir):
-        os.mkdir(os.path.join(self.dirname,dir))
+    def mkdir(self, dir):
+        os.mkdir(os.path.join(self.dirname, dir))
 
-    def sync_directory(self,dir):
+    def sync_directory(self, dir):
         if self._use_dirsync:
-            p = os.path.join(self.dirname,dir)
+            p = os.path.join(self.dirname, dir)
             # Use os.open here because, mysteriously, it performs better
             # than fopen on linux 2.4.18, reiserfs, glibc 2.2.4
-            f = os.open(p,os.O_RDONLY)
+            f = os.open(p, os.O_RDONLY)
             # Should we worry about EINTR ?
             try:
                 # Get OSError: [Errno 22] Invalid argument on this next fsync?
@@ -59,56 +70,58 @@ class PosixFilesystem(LocalFilesystem):
             finally:
                 os.close(f)
 
-    def write_file(self,filename,content):
-        fullname = os.path.join(self.dirname,filename)
-        f = os.open(fullname,os.O_CREAT|os.O_RDWR|os.O_TRUNC,0o640)
+    def write_file(self, filename, content):
+        fullname = os.path.join(self.dirname, filename)
+        f = os.open(fullname, os.O_CREAT | os.O_RDWR | os.O_TRUNC, 0o640)
         # Should we worry about EINTR ?
         try:
-            os.write(f,content)
+            os.write(f, content)
             if self.use_sync:
                 fsync(f)
         finally:
             os.close(f)
 
-    def modify_file(self,filename,offset,content):
-        fullname = os.path.join(self.dirname,filename)
-        f = os.open(fullname,os.O_CREAT|os.O_RDWR,0o640)
+    def modify_file(self, filename, offset, content):
+        fullname = os.path.join(self.dirname, filename)
+        f = os.open(fullname, os.O_CREAT | os.O_RDWR, 0o640)
         try:
-            os.lseek(f,offset,0)
-            os.write(f,content)
+            os.lseek(f, offset, 0)
+            os.write(f, content)
         finally:
             os.close(f)
 
-    def first_half_write_file(self,filename,content):
-        fullname = os.path.join(self.dirname,filename)
-        f = os.open(fullname,os.O_CREAT|os.O_RDWR|os.O_TRUNC,0o640)
-        os.write(f,content)
+    def first_half_write_file(self, filename, content):
+        fullname = os.path.join(self.dirname, filename)
+        f = os.open(fullname, os.O_CREAT | os.O_RDWR | os.O_TRUNC, 0o640)
+        os.write(f, content)
         os.close(f)
         # Waaah, in the general case we cant afford to keep the file open
         return fullname
 
-    def second_half_write_file(self,fullname):
+    def second_half_write_file(self, fullname):
         if self.use_sync:
-            f = os.open(fullname,os.O_RDONLY)
+            f = os.open(fullname, os.O_RDONLY)
             try:
                 fsync(f)
             finally:
                 os.close(f)
 
-    def abort_half_write_file(self,f):
+    def abort_half_write_file(self, f):
         pass
 
-    def read_file(self,filename):
-        full = os.path.join(self.dirname,filename)
+    def read_file(self, filename):
+        full = os.path.join(self.dirname, filename)
         while 1:
             try:
-                f = os.open(full,os.O_RDONLY)
+                f = os.open(full, os.O_RDONLY)
             except EnvironmentError as e:
                 if e.errno == errno.EINTR:
                     # Its wierd, but it happens
                     pass
                 elif e.errno == errno.ENOENT:
-                    raise FileDoesNotExist('DirectoryStorage file %r does not exist' % (filename,) )
+                    raise FileDoesNotExist(
+                        "DirectoryStorage file %r does not exist" % (filename,)
+                    )
                 else:
                     raise
             else:
@@ -116,48 +129,49 @@ class PosixFilesystem(LocalFilesystem):
         try:
             chunks = []
             while 1:
-                chunk = os.read(f,1024*16)
+                chunk = os.read(f, 1024 * 16)
                 if not chunk:
                     break
                 chunks.append(chunk.decode())
-            c = ''.join(chunks)
+            c = "".join(chunks)
         finally:
             os.close(f)
         return c
 
-    def listdir(self,filename,skip_marks=1):
+    def listdir(self, filename, skip_marks=1):
         # Python os.listdir is not scalable. What alternative should we use?
         # This easy version is not scalable to large directories
-        l = os.listdir(os.path.join(self.dirname,filename))
+        l = os.listdir(os.path.join(self.dirname, filename))
         if skip_marks:
-            l = [n for n in l if not n.endswith('.mark')]
+            l = [n for n in l if not n.endswith(".mark")]
         return l
 
-    def rename(self,a,b):
-        os.rename(os.path.join(self.dirname,a),os.path.join(self.dirname,b))
+    def rename(self, a, b):
+        os.rename(os.path.join(self.dirname, a), os.path.join(self.dirname, b))
 
-    def overwrite(self,a,b):
-        os.rename(os.path.join(self.dirname,a),os.path.join(self.dirname,b))
+    def overwrite(self, a, b):
+        os.rename(os.path.join(self.dirname, a), os.path.join(self.dirname, b))
 
-    def unlink(self,a):
-        full = os.path.join(self.dirname,a)
+    def unlink(self, a):
+        full = os.path.join(self.dirname, a)
         try:
             os.unlink(full)
         except EnvironmentError as e:
             if e.errno == errno.ENOENT:
-                raise FileDoesNotExist('DirectoryStorage file %r does not exist' % (a,))
+                raise FileDoesNotExist("DirectoryStorage file %r does not exist" % (a,))
             else:
                 raise
 
-    def rmdir(self,a):
-        os.rmdir(os.path.join(self.dirname,a))
+    def rmdir(self, a):
+        os.rmdir(os.path.join(self.dirname, a))
 
     _lock_file = None
     _sub_lock_file = None
+
     def _lock(self):
         # In a change since version 1.0, it does not acquire the sub-lock
         if not self._lock_file:
-            self._lock_file = LockFile(os.path.join(self.dirname, 'misc/lock'))
+            self._lock_file = LockFile(os.path.join(self.dirname, "misc/lock"))
 
     def half_unlock(self):
         if self._sub_lock_file:
@@ -166,7 +180,7 @@ class PosixFilesystem(LocalFilesystem):
 
     def half_relock(self):
         if not self._sub_lock_file:
-            self._sub_lock_file = LockFile(os.path.join(self.dirname, 'misc/sublock'))
+            self._sub_lock_file = LockFile(os.path.join(self.dirname, "misc/sublock"))
 
     def close(self):
         LocalFilesystem.close(self)
@@ -177,53 +191,54 @@ class PosixFilesystem(LocalFilesystem):
             self._lock_file.close()
             del self._lock_file
 
-    def mark_context(self,base):
+    def mark_context(self, base):
         s = weakref.proxy(self)
-        mc = _mark_policies[self.config.get('posix','mark')](s)
+        mc = _mark_policies[self.config.get("posix", "mark")](s)
         mc.unmark_all(base)
         return mc
-
 
 
 class PosixFilesystemTransaction(LocalFilesystemTransaction):
     pass
 
+
 # various _XxxxxMarker classes implement different
 # implementation policies for marking files (as
 # used by the mark/sweep storage packer)
 
+
 class _FileMarker:
     # Files are marked by creating another zero-length file in the
     # same directory, of the same name appended with '.mark'.
-    def __init__(self,fs):
+    def __init__(self, fs):
         self.fs = fs
 
-    def mark(self,a):
-        path = os.path.join(self.fs.dirname, a+'.mark')
-        os.close(os.open(path, os.O_CREAT,0o600))
+    def mark(self, a):
+        path = os.path.join(self.fs.dirname, a + ".mark")
+        os.close(os.open(path, os.O_CREAT, 0o600))
 
-    def unmark(self,a):
+    def unmark(self, a):
         try:
-           self.fs.unlink(a+'.mark')
+            self.fs.unlink(a + ".mark")
         except EnvironmentError as e:
-           if e.errno==errno.ENOENT:
-               pass
-           else:
-               raise
+            if e.errno == errno.ENOENT:
+                pass
+            else:
+                raise
 
-    def is_marked(self,a):
-        path = os.path.join(self.fs.dirname, a+'.mark')
+    def is_marked(self, a):
+        path = os.path.join(self.fs.dirname, a + ".mark")
         return os.path.exists(path)
 
-    def unmark_all(self,a):
-        for file in self.fs.listdir(a,skip_marks=0):
+    def unmark_all(self, a):
+        for file in self.fs.listdir(a, skip_marks=0):
             if self.fs._shutdown_flusher:
-                raise DirectoryStorageError('unmark_all interrupted')
-            path = os.path.join(a,file)
+                raise DirectoryStorageError("unmark_all interrupted")
+            path = os.path.join(a, file)
             if self.fs.isdir(path):
                 self.unmark_all(path)
             else:
-                if file.endswith('.mark'):
+                if file.endswith(".mark"):
                     self.fs.unlink(path)
 
 
@@ -252,7 +267,7 @@ class _PermissionsMarker:
     # this process into executing his file during the brief period when
     # is set during packing. This is not an likely threat.
 
-    def __init__(self,fs):
+    def __init__(self, fs):
         self.fs = fs
         self.altmark = {}
 
@@ -262,41 +277,45 @@ class _PermissionsMarker:
 
     # CAUTION: these are in octal.
 
-    _unmarked = 0o640 # u=rw,g=r
-    _marked   = 0o740 # u=rwx,g=r
-    _mask     = 0o100
+    _unmarked = 0o640  # u=rw,g=r
+    _marked = 0o740  # u=rwx,g=r
+    _mask = 0o100
     _expected = 0o100
 
-    def mark(self,a):
+    def mark(self, a):
         path = os.path.join(self.fs.dirname, a)
         try:
-            os.chmod(path,self._marked)
+            os.chmod(path, self._marked)
         except EnvironmentError as e:
             if e.errno == errno.EPERM:
                 self.altmark[path] = 1
-                if len(self.altmark)>self.altmark_limit:
-                    raise DirectoryStorageError('Too many files are not owned by %d, %r' % (os.getuid(),path))
+                if len(self.altmark) > self.altmark_limit:
+                    raise DirectoryStorageError(
+                        "Too many files are not owned by %d, %r" % (os.getuid(), path)
+                    )
             elif e.errno == errno.ENOENT:
                 # it is not an error to try to mark a file that does not exist
                 pass
             else:
                 raise
 
-    def unmark(self,a):
+    def unmark(self, a):
         path = os.path.join(self.fs.dirname, a)
         try:
-            os.chmod(path,self._unmarked)
+            os.chmod(path, self._unmarked)
         except EnvironmentError as e:
             if e.errno == errno.EPERM:
                 self.altmark[path] = 0
-                if len(self.altmark)>self.altmark_limit:
-                    raise DirectoryStorageError('Too many files are not owned by %d, %r' % (os.getuid(),path))
+                if len(self.altmark) > self.altmark_limit:
+                    raise DirectoryStorageError(
+                        "Too many files are not owned by %d, %r" % (os.getuid(), path)
+                    )
             elif e.errno == errno.ENOENT:
                 pass
             else:
                 raise
 
-    def is_marked(self,a):
+    def is_marked(self, a):
         path = os.path.join(self.fs.dirname, a)
         try:
             return self.altmark[path]
@@ -310,23 +329,24 @@ class _PermissionsMarker:
                     raise
             return self.is_marked_stats(stats)
 
-    def is_marked_stats(self,stats):
-        if (stats[0]&self._mask) == self._expected:
+    def is_marked_stats(self, stats):
+        if (stats[0] & self._mask) == self._expected:
             # it is marked in the normal way
             return 1
         return 0
 
-    def unmark_all(self,a):
-        for file in self.fs.listdir(a,skip_marks=0):
+    def unmark_all(self, a):
+        for file in self.fs.listdir(a, skip_marks=0):
             if self.fs._shutdown_flusher:
-                raise DirectoryStorageError('unmark_all interrupted')
-            path = os.path.join(a,file)
-            stats = os.stat(os.path.join(self.fs.dirname,path))
-            if stat.S_ISDIR(stats[0]):       # optimised from if self.fs.isdir(path):
+                raise DirectoryStorageError("unmark_all interrupted")
+            path = os.path.join(a, file)
+            stats = os.stat(os.path.join(self.fs.dirname, path))
+            if stat.S_ISDIR(stats[0]):  # optimised from if self.fs.isdir(path):
                 self.unmark_all(path)
             else:
                 if self.is_marked_stats(stats):
                     self.unmark(path)
+
 
 class _StorageMarker:
     # FileStorageMarker and MinimalStorageMarker store the mark status in
@@ -338,9 +358,9 @@ class _StorageMarker:
     # may improve further on that 80% particularly if the main disk
     # is encrypted, or raid.
 
-    def __init__(self,fs):
+    def __init__(self, fs):
         self.fs = fs
-        self.dir = os.path.join(fs.dirname,'misc','packing')
+        self.dir = os.path.join(fs.dirname, "misc", "packing")
         # ensure that directory exists
         try:
             os.mkdir(self.dir)
@@ -356,7 +376,7 @@ class _StorageMarker:
         self.conn = db.open()
         get_transaction().begin()
         root = self.conn.root()
-        self.tree = root['tree'] = OIBTree()
+        self.tree = root["tree"] = OIBTree()
         get_transaction().commit()
         self.empty = 1
         self.counter = 0
@@ -380,13 +400,13 @@ class _StorageMarker:
             # Delete the directory
             self._clean()
 
-    def _clean(self,base=None):
+    def _clean(self, base=None):
         if base is None:
             base = self.dir
         if base is None:
             return
         for f in os.listdir(base):
-            full = os.path.join(base,f)
+            full = os.path.join(base, f)
             if os.path.isdir(full):
                 self._clean(full)
                 try:
@@ -404,7 +424,9 @@ class _StorageMarker:
         # This is equal to the size of the ZODB cache, plus any nodes created since the last
         # commit. We cant quickly get an accurate count of new nodes, so this is estimated as
         # one new node for every 10 writes.
-        memory_usage_measure = self.counter/10 + self.tree._p_jar._cache.cache_non_ghost_count
+        memory_usage_measure = (
+            self.counter / 10 + self.tree._p_jar._cache.cache_non_ghost_count
+        )
         if memory_usage_measure > 2000:
             # We have 2000 objects in memory. Write the changed ones to disk.
             get_transaction().commit()
@@ -412,91 +434,85 @@ class _StorageMarker:
             self.tree._p_jar.cacheGC()
             self.counter = 0
 
-    def mark(self,a):
+    def mark(self, a):
         self.tree[a] = 1
         self.empty = 0
         self.counter += 1
         self.commit()
 
-    def unmark(self,a):
+    def unmark(self, a):
         self.tree[a] = 0
         self.counter += 1
         self.commit()
 
-    def is_marked(self,a):
-        r = self.tree.get(a,None)
+    def is_marked(self, a):
+        r = self.tree.get(a, None)
         self.commit()
         return r
 
-    def unmark_all(self,a):
+    def unmark_all(self, a):
         if self.empty:
             return
         # When needed, this should be implemented by
         # creating a new storage
-        raise NotImplementedError('unmark_all')
+        raise NotImplementedError("unmark_all")
 
 
 class _FileStorageMarker(_StorageMarker):
-
     def initstorage(self):
         # create the filestorage
-        name = 'marks-%s.fs' % (uuid.uuid4().hex,)
-        self.substorage = FileStorage(os.path.join(self.dir,name))
+        name = "marks-%s.fs" % (uuid.uuid4().hex,)
+        self.substorage = FileStorage(os.path.join(self.dir, name))
+
 
 class _MinimalStorageMarker(_StorageMarker):
-
     def initstorage(self):
-        from . import Minimal
-        from . import mkds
-        name = 'marks-%s' % (uuid.uuid4().hex,)
-        path = os.path.join(self.dir,name)
-        mkds.mkds(path,'Minimal',self.fs.format,sync=0,somemd5s=0)
+        from . import Minimal, mkds
+
+        name = "marks-%s" % (uuid.uuid4().hex,)
+        path = os.path.join(self.dir, name)
+        mkds.mkds(path, "Minimal", self.fs.format, sync=0, somemd5s=0)
         subfs = PosixFilesystem(path)
         subfs.ENGINE_NOISE = loglevel_BLATHER
         self.substorage = Minimal.Minimal(subfs)
 
 
 class _MemoryMarker:
-    def __init__(self,fs):
+    def __init__(self, fs):
         self.marks = {}
 
-    def mark(self,a):
+    def mark(self, a):
         self.marks[a] = 1
 
-    def unmark(self,a):
+    def unmark(self, a):
         self.marks[a] = 0
 
-    def is_marked(self,a):
-        return self.marks.get(a,0)
+    def is_marked(self, a):
+        return self.marks.get(a, 0)
 
-    def unmark_all(self,a):
+    def unmark_all(self, a):
         self.marks = {}
 
 
 _mark_policies = {
     # The old favorite - store the mark flag inside file permissions.
     # This was the default in 1.1
-    'permissions' : _PermissionsMarker,
-
+    "permissions": _PermissionsMarker,
     # This used to be the old scalable alternative to 'permissions'.
     # It stores the mark bit as an extra zero length file.
     # Very slow. Not recomended.
-    'file' : _FileMarker,
-
+    "file": _FileMarker,
     # Use a dict in memory. This is the fastest if your storage is small,
     # but memory usage is proportional to storage size.
-    'memory': _MemoryMarker,
-
+    "memory": _MemoryMarker,
     # An experimental option new in 1.1. Feedback on this is appreciated.
     # Use *another* DirectoryStorage to contain a BTree containing mark bits.
     # The ZODB transaction/thread policy means this one has to work in
     # its own thread. See comments in its implementation about relative
     # advantages of this scheme.
-    'Minimal' : _MinimalStorageMarker,
-
+    "Minimal": _MinimalStorageMarker,
     # old name for 'Minimal'. do not use
-    'MinimalStorage' : _MinimalStorageMarker,
-
+    "MinimalStorage": _MinimalStorageMarker,
     # This sucks. do not use
     # 'FileStorage' : _FileStorageMarker,
- }
+}

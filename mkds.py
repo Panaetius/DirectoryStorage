@@ -5,9 +5,14 @@
 # This library is subject to the provisions of the
 # GNU Lesser General Public License version 2.1
 
-import os, sys, hashlib,uuid, binascii
+import binascii
+import hashlib
+import os
+import sys
+import uuid
 
 from .formats import formats
+
 
 def usage():
     return """Usage: %s directory <Full|Minimal> <bushy|chunky>
@@ -21,46 +26,51 @@ A tool to create a new empty storage.
   bushy     - For conventional filesystem like ext3 on Linux.
   chunky    - For filesystem which is efficient with large directories, such as
               reiserfs or JFS on Linux.
-""" % os.path.basename(sys.argv[0])
+""" % os.path.basename(
+        sys.argv[0]
+    )
+
 
 def main():
     argv = sys.argv
-    if len(argv)!=4:
+    if len(argv) != 4:
         sys.exit(usage())
     mkds(argv[1], argv[2], argv[3])
-    print('created OK', file=sys.stderr)
+    print("created OK", file=sys.stderr)
 
-def mkds(directory,classname,format,sync=1,somemd5s=1):
-    if format=='auto':
-        raise ValueError('Format must be specified when creating')
+
+def mkds(directory, classname, format, sync=1, somemd5s=1):
+    if format == "auto":
+        raise ValueError("Format must be specified when creating")
     if not format in formats:
-        raise ValueError('Unknown format %r' % (format,))
+        raise ValueError("Unknown format %r" % (format,))
     filename_munge = formats[format]
-    if classname == 'Full':
+    if classname == "Full":
         pass
-    elif classname == 'Minimal':
+    elif classname == "Minimal":
         pass
     else:
-        raise ValueError('Unknown class %r' % (classname))
+        raise ValueError("Unknown class %r" % (classname))
     if os.path.exists(directory):
-        raise ValueError('Cant create %r, it already exists' % (directory,))
+        raise ValueError("Cant create %r, it already exists" % (directory,))
     os.mkdir(directory)
-    os.mkdir(directory+'/A')
-    os.mkdir(directory+'/journal')
-    os.mkdir(directory+'/B')
-    os.mkdir(directory+'/misc')
-    os.mkdir(directory+'/config')
-    open(directory+'/config/settings','w').write(_default_settings % locals())
-    open(directory+'/config/identity','w').write(make_identity())
-    name = directory+'/A/'+filename_munge('x.oid')
+    os.mkdir(directory + "/A")
+    os.mkdir(directory + "/journal")
+    os.mkdir(directory + "/B")
+    os.mkdir(directory + "/misc")
+    os.mkdir(directory + "/config")
+    open(directory + "/config/settings", "w").write(_default_settings % locals())
+    open(directory + "/config/identity", "w").write(make_identity())
+    name = directory + "/A/" + filename_munge("x.oid")
     mkdirs(name)
-    open(name,'w').write('\0'*8)
-    name = directory+'/A/'+filename_munge('x.serial')
+    open(name, "w").write("\0" * 8)
+    name = directory + "/A/" + filename_munge("x.serial")
     mkdirs(name)
-    open(name,'w').write('\0'*8)
-    name = directory+'/A/'+filename_munge('x.packed')
+    open(name, "w").write("\0" * 8)
+    name = directory + "/A/" + filename_munge("x.packed")
     mkdirs(name)
-    open(name,'w').write('\0'*8)
+    open(name, "w").write("\0" * 8)
+
 
 def mkdirs(file):
     # make sure that it is possible to write the file by creating any
@@ -72,18 +82,18 @@ def mkdirs(file):
         mkdirs(parent)
         os.mkdir(parent)
 
+
 def make_identity():
     # choose a random string to use as a database identity
     try:
         # use the system random device if it has one
-        return binascii.b2a_hex(open('/dev/urandom', "rb").read(16)).decode()
+        return binascii.b2a_hex(open("/dev/urandom", "rb").read(16)).decode()
     except EnvironmentError:
         # use a hash of python's entropy gatherer
         return binascii.b2a_hex(hashlib.md5(uuid.uuid4().hex).digest())
 
 
-
-_default_settings="""
+_default_settings = """
 [structure]
 
 format: %(format)s
@@ -292,5 +302,5 @@ dirsync: 1
 """
 
 
-if __name__=='__main__':
+if __name__ == "__main__":
     main()

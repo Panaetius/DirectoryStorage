@@ -4,22 +4,29 @@
 # GNU Lesser General Public License version 2.1
 
 
+import errno
+import os
+import queue
+import re
+import sys
+import tempfile
+import threading
+import time
 
-import os, sys, time, re, threading, queue, errno, tempfile
-from .BaseFilesystem import BaseFilesystem, BaseFilesystemTransaction, FileDoesNotExist
-
-from .utils import z64, oid2str, DirectoryStorageError, RecoveryError
-from .utils import logger
+from .BaseFilesystem import (BaseFilesystem, BaseFilesystemTransaction,
+                             FileDoesNotExist)
 from .formats import formats
+from .utils import DirectoryStorageError, RecoveryError, logger, oid2str, z64
+
 
 class LocalFilesystem(BaseFilesystem):
     # Implementation of higher level transactional database operations,
     # using the filesystem operations defined in the base class, in
     # a manner suitable for a traditional filesystem.
 
-    def __init__(self,dirname):
+    def __init__(self, dirname):
         self.dirname = os.path.abspath(dirname)
-        self.snapshot_code = 'startup'
+        self.snapshot_code = "startup"
         self._have_flushed = 1
         self._shutdown_flusher = 0
         BaseFilesystem.__init__(self)
@@ -30,13 +37,17 @@ class LocalFilesystem(BaseFilesystem):
         # For production, IO overhead is reduced by dealing
         # with journal flushing in big batches. The parametes control
         # how big the batches are.
-        self.flush_interval = self.config.getint('journal','flush_interval')
-        self.flush_file_threshold = self.config.getint('journal','flush_file_threshold')
-        self.flush_transaction_threshold = self.config.getint('journal','flush_transaction_threshold')
-        self.quick_shutdown = self.config.getint('filesystem','quick_shutdown')
-        self.format = self.config.get('structure','format')
+        self.flush_interval = self.config.getint("journal", "flush_interval")
+        self.flush_file_threshold = self.config.getint(
+            "journal", "flush_file_threshold"
+        )
+        self.flush_transaction_threshold = self.config.getint(
+            "journal", "flush_transaction_threshold"
+        )
+        self.quick_shutdown = self.config.getint("filesystem", "quick_shutdown")
+        self.format = self.config.get("structure", "format")
         if self.format not in formats:
-            raise DirectoryStorageError('Unknown format %r' % (format,))
+            raise DirectoryStorageError("Unknown format %r" % (format,))
         self._init_munger(self.format)
         self._unflushed_timestamp = 0
         self._unflushed_total = 0
@@ -45,19 +56,19 @@ class LocalFilesystem(BaseFilesystem):
         self._unflushed = []
         self._async_work_queue = queue.Queue()
         self._backlog_tokens = queue.Queue()
-        for i in range(self.config.getint('journal','backlog')):
+        for i in range(self.config.getint("journal", "backlog")):
             self._backlog_tokens.put(None)
 
-    def engage(self,synchronous=0):
+    def engage(self, synchronous=0):
         try:
             self._lock()
         except:
-            raise DirectoryStorageError('Storage is locked by another process')
+            raise DirectoryStorageError("Storage is locked by another process")
         try:
             self.half_relock()
         except:
             if synchronous:
-                raise DirectoryStorageError('Storage is locked in snapshot mode')
+                raise DirectoryStorageError("Storage is locked in snapshot mode")
             stay_in_snapshot = 1
         else:
             self._unlink_snapshot_file()
@@ -74,12 +85,12 @@ class LocalFilesystem(BaseFilesystem):
         if stay_in_snapshot:
             # Some other process is assuming snapshot mode. Dont break its
             # assumptions. How do we get out of this state?
-            logger.info('Engaging in snapshot mode')
+            logger.info("Engaging in snapshot mode")
         else:
             # The B directory may contain some files, whether from an old snapshot
             # or the preceeding journal flush. Move them into the A directory
             # asynchronously
-            self.leave_snapshot('startup')
+            self.leave_snapshot("startup")
         # If the synchronous flag is set then ensure that the
         # B directory is flushed before this method returns.
         if synchronous:
@@ -88,15 +99,15 @@ class LocalFilesystem(BaseFilesystem):
             i = 0.01
             while self.snapshot_code:
                 time.sleep(i)
-                i = min(5,i*1.1)
+                i = min(5, i * 1.1)
 
-    def _init_munger(self,format):
+    def _init_munger(self, format):
         self.filename_munge = formats[format]
 
     def name(self):
-        return '%s filesystem at %r' % (self.format,self.dirname)
+        return "%s filesystem at %r" % (self.format, self.dirname)
 
-    def _add_to_flush_queue(self,transaction):
+    def _add_to_flush_queue(self, transaction):
         # no need to worry about concurrency here, because it is
         # only called from transaction commit which is already non reentent
         now = time.time()
@@ -117,11 +128,11 @@ class LocalFilesystem(BaseFilesystem):
         # solve this by reducing the size of the thresholds below as the backlog increases.
         # I wont bother doing this unless someone actually needs it.
         if age > self.flush_interval:
-            reason = 'age limit reached'
+            reason = "age limit reached"
         elif self._unflushed_total >= self.flush_file_threshold:
-            reason = 'files limit reached'
+            reason = "files limit reached"
         elif len(self._unflushed) >= self.flush_transaction_threshold:
-            reason = 'transactions limit reached'
+            reason = "transactions limit reached"
         else:
             return
         # We have very old unflushed transactions, very many
@@ -133,13 +144,13 @@ class LocalFilesystem(BaseFilesystem):
     def _pre_transaction(self):
         pass
 
-    def _flush_all(self,reason):
+    def _flush_all(self, reason):
         # Move all unflushed transactions into the work queue so
         # that the other thread can deal with them
         self._flush_lock.acquire()
         try:
             if self._unflushed:
-                MultiFlush(self._unflushed,self,reason).go()
+                MultiFlush(self._unflushed, self, reason).go()
                 self._unflushed = []
                 self._unflushed_total = 0
         finally:
@@ -174,19 +185,20 @@ class LocalFilesystem(BaseFilesystem):
             # not be flushed, and eventually we will stop allowing
             # write requests
             logger.critical(
-                'Error when flushing already committed transaction',
-                error=sys.exc_info())
+                "Error when flushing already committed transaction",
+                error=sys.exc_info(),
+            )
         except:
             pass
 
-    def read_database_file(self,name):
+    def read_database_file(self, name):
         self.relocations_lock.acquire()
         try:
             return self._do_read_database_file(name)
         finally:
             self.relocations_lock.release()
 
-    def _do_read_database_file(self,name):
+    def _do_read_database_file(self, name):
         relocated_dir = self.relocations.get(name)
         if relocated_dir is None:
             # No relocations....
@@ -195,45 +207,45 @@ class LocalFilesystem(BaseFilesystem):
                 # We are in snapshot mode, so we need to look in
                 # directory B, followed by A
                 try:
-                    return self.read_file(os.path.join('B',name))
+                    return self.read_file(os.path.join("B", name))
                 except FileDoesNotExist:
                     try:
-                        return self.read_file(os.path.join('A',name))
+                        return self.read_file(os.path.join("A", name))
                     except FileDoesNotExist:
                         raise
             else:
                 # If we are not in snapshot mode, or have not flushed the journal
                 # since entering snapshot mode, then directory A is the only
                 # place we need to look
-                return self.read_file(os.path.join('A',name))
+                return self.read_file(os.path.join("A", name))
         else:
             # a relocation!!!
             try:
-                return self.read_file(os.path.join(relocated_dir,name))
+                return self.read_file(os.path.join(relocated_dir, name))
             except FileDoesNotExist:
                 # The file given in the relocation does not exist?
                 # something got deleted from the journal directory, or we corrupted
                 # our relocations database. This is bad.
-                logger.critical('File missing from journal')
+                logger.critical("File missing from journal")
                 raise FileMissingFromJournalError()
 
-    def _move_to_database_directory(self,sourcedir,dirmap):
+    def _move_to_database_directory(self, sourcedir, dirmap):
         # Move many files from the journal transaction directory to
         # an appropriate database directory
         if self.snapshot_code:
             # First, record the fact that we have flushed so that _do_read_database_file
             # in snapshot mode has to do a little more work.
             self._have_flushed = 1
-            dir = 'B'
+            dir = "B"
         else:
-            dir = 'A'
+            dir = "A"
         for sname in self.listdir(sourcedir):
             if self._shutdown_flusher:
                 return
             name = self.filename_munge(sname)
             directory = os.path.split(name)[0]
-            dest = os.path.join(dir,name)
-            self._check_dir(dest,dirmap)
+            dest = os.path.join(dir, name)
+            self._check_dir(dest, dirmap)
             # On ext2 filesystem this is unsafe. The destination
             # directory has just been created and we are about to
             # rename comitted files into it. If the system goes down soon
@@ -242,12 +254,12 @@ class LocalFilesystem(BaseFilesystem):
             self.relocations_lock.acquire()
             try:
                 relto = self.relocations.get(sname)
-                if relto==sourcedir or relto==None:
+                if relto == sourcedir or relto == None:
                     # If this record name was previously relocated to the file
                     # we have just moved then we need to move it because it is still
                     # current. If it was not in the relocations map then we must be performing
                     # recovery, and therefore we need to move it into the database directory.
-                    self.overwrite(os.path.join(sourcedir,sname),dest)
+                    self.overwrite(os.path.join(sourcedir, sname), dest)
                     # Remove the relocation.
                     if relto is not None:
                         del self.relocations[sname]
@@ -256,11 +268,11 @@ class LocalFilesystem(BaseFilesystem):
                     # this record was overwritten while still in the journal.
                     # We could treat it the same as the first branch, but it
                     # is more efficient to remove it.
-                    self.unlink(os.path.join(sourcedir,sname))
+                    self.unlink(os.path.join(sourcedir, sname))
             finally:
-               self.relocations_lock.release()
+                self.relocations_lock.release()
 
-    def _check_dir(self,file,dirs):
+    def _check_dir(self, file, dirs):
         # make sure that it is possible to write the file by creating any
         # intermediate directories. dirs is a dictionary set in which we
         # record every directory modified; they may all need to be synced
@@ -270,16 +282,16 @@ class LocalFilesystem(BaseFilesystem):
         if not parent in dirs:
             dirs[parent] = 1
             if not self.exists(parent):
-                self._check_dir(parent,dirs)
+                self._check_dir(parent, dirs)
                 self.mkdir(parent)
 
     def close(self):
         quick = self.quick_shutdown
         if not quick:
             try:
-                self.enter_snapshot('shutdown')
+                self.enter_snapshot("shutdown")
             except DirectoryStorageError:
-                logger.warning('shutdown without snapshot')
+                logger.warning("shutdown without snapshot")
                 quick = 1
         if quick:
             # Signal that we want to stop as soon as possible
@@ -289,27 +301,28 @@ class LocalFilesystem(BaseFilesystem):
         # Wait for the thread to terminate.
         self._flusher.join()
 
-    _transaction_directory_re = re.compile('^working_[A-F0-9]{16}_((?:temp)|(?:done))')
+    _transaction_directory_re = re.compile("^working_[A-F0-9]{16}_((?:temp)|(?:done))")
+
     def _recovery(self):
         # This is called at startup to flush any changes remaining
         # in the journal directory. It is always called before the
         # journal flushing thread is started. At startup we are
         # always in snapshot mode, therefore these files are being
         # flushed into the B directory
-        jc = [x for x in self.listdir('journal')]
-        jc.sort() # alphabetic sort order will give us jounal replay order too
+        jc = [x for x in self.listdir("journal")]
+        jc.sort()  # alphabetic sort order will give us jounal replay order too
 
         # Should we check that the journal directory names correspond to transactions
         # that are more recent than what we believe to be the most recent flushed transaction?
         # That would protect against misguided backup/restore cycles, but is there a danger
         # of false positives?
 
-        if self.exists('journal/replica.tar'):
+        if self.exists("journal/replica.tar"):
             # Check some things that should never happen
-            if len(jc)!=1:
-                raise RecoveryError('journal not empty, and journal/replica.tar exists')
-            if [x for x in self.listdir('B')]:
-                raise RecoveryError('B not empty, and journal/replica.tar exists')
+            if len(jc) != 1:
+                raise RecoveryError("journal not empty, and journal/replica.tar exists")
+            if [x for x in self.listdir("B")]:
+                raise RecoveryError("B not empty, and journal/replica.tar exists")
             self.flush_replica()
             jc = []
 
@@ -321,35 +334,35 @@ class LocalFilesystem(BaseFilesystem):
             match = self._transaction_directory_re.match(file)
             if not match:
                 strange.append(file)
-            elif match.group(1)=='done':
+            elif match.group(1) == "done":
                 to_flush.append(file)
             else:
                 to_delete.append(file)
         if strange:
-            raise RecoveryError('unexpected files in journal directory: %r' % (strange))
+            raise RecoveryError("unexpected files in journal directory: %r" % (strange))
         # For every directory that we want to keep...
         paths = []
         for file in to_flush:
             # add every file in the directory into the relocations mapping.
-            path = os.path.join('journal',file)
+            path = os.path.join("journal", file)
             paths.append(path)
             for file in self.listdir(path):
                 self.relocations[file] = path
         # Asynchonously move good files into the main directory
-        MultiFlush(paths,self,'recovery').go()
+        MultiFlush(paths, self, "recovery").go()
         # And ansynchronously delete bad ones
         if to_delete:
             t = threading.Thread(target=self._delete, args=(to_delete,))
             t.setDaemon(1)
             t.start()
 
-    def _delete(self,to_delete):
+    def _delete(self, to_delete):
         # for every directory that we want to delete
         for file in to_delete:
             # ... delete its contents
-            path = os.path.join('journal',file)
+            path = os.path.join("journal", file)
             for file in self.listdir(path):
-                self.unlink(os.path.join(path,file))
+                self.unlink(os.path.join(path, file))
             # ... and delete the directory
             self.rmdir(path)
 
@@ -358,7 +371,7 @@ class LocalFilesystem(BaseFilesystem):
         # flush HOME/journal/replica.tar, a file created by the replication process.
         tf = tempfile.TemporaryFile()
         # First use tar to list the files and test that the file is OK.
-        cmd = 'tar -B -C %s -t -f %s/journal/replica.tar' % (self.dirname,self.dirname)
+        cmd = "tar -B -C %s -t -f %s/journal/replica.tar" % (self.dirname, self.dirname)
         f = os.popen(cmd)
         while 1:
             line = f.readline()
@@ -366,14 +379,14 @@ class LocalFilesystem(BaseFilesystem):
                 break
             tf.write(line)
         if f.close():
-            raise DirectoryStorageError('Error in replica.tar')
+            raise DirectoryStorageError("Error in replica.tar")
         # Next extract the files
-        cmd = 'tar -B -C %s -x -f %s/journal/replica.tar' % (self.dirname,self.dirname)
+        cmd = "tar -B -C %s -x -f %s/journal/replica.tar" % (self.dirname, self.dirname)
         if os.system(cmd):
-            raise DirectoryStorageError('Error unpacking replica.tar')
+            raise DirectoryStorageError("Error unpacking replica.tar")
         # Sync all the files, using the list we prepared earlier
         # (Waaah - tar should have a mode to do this for me)
-        tf.seek(0,0)
+        tf.seek(0, 0)
         c = 0
         while 1:
             line = tf.readline().strip()
@@ -386,26 +399,29 @@ class LocalFilesystem(BaseFilesystem):
         # Keeping the file around until the next replica is handy for
         # debugging, plus its mtime is useful if you need to know
         # when you last replicated.
-        self.rename('journal/replica.tar','misc/replica.previous')
-        self.sync_directory('journal')
-        logger.log(self.ENGINE_NOISE, 'Flushed %d files from replica' % (c,))
+        self.rename("journal/replica.tar", "misc/replica.previous")
+        self.sync_directory("journal")
+        logger.log(self.ENGINE_NOISE, "Flushed %d files from replica" % (c,))
 
-    def enter_snapshot(self,code):
+    def enter_snapshot(self, code):
         # Enter snapshot mode. On return the main 'A' directory is a snapshot of the
         # database, which this class will not modify until 'leave_snapshot' is called. Note
         # that it is not possible to re-enter snapshot mode for some time after leaving
         # a previous snapshot, since database writes have to be recombined into the
         # main 'A' database directory.
-        assert code, 'code must be non-zero'
+        assert code, "code must be non-zero"
         # The snapshot lock is used to ensure that only one thread enters snapshot mode,
         # and to ensure that there are no concurrent writes during entry to snapshot mode.
         self._snapshot_lock.acquire()
         try:
             if self.snapshot_code:
-                raise DirectoryStorageError('Can not enter snapshot mode: snapshot already in use by %r' % self.snapshot_code)
+                raise DirectoryStorageError(
+                    "Can not enter snapshot mode: snapshot already in use by %r"
+                    % self.snapshot_code
+                )
             # We want the journal to be as empty as possible when entering snapshot mode.
             # Move all transactions into the flush queue
-            self._flush_all('snapshot')
+            self._flush_all("snapshot")
             self._unflushed_timestamp = time.time()
             # Wait for the flusher thread to flush everything, and signal that the
             # flusher thread has entered snapshot mode
@@ -413,28 +429,30 @@ class LocalFilesystem(BaseFilesystem):
             self._async_work_queue.put(lambda: self._enter_snapshot(code))
             self._snapshot_ack.acquire()
             self._snapshot_ack.release()
-            logger.log(self.ENGINE_NOISE, 'Entered snapshot mode %r' % (code,))
+            logger.log(self.ENGINE_NOISE, "Entered snapshot mode %r" % (code,))
             # Create the file which indicates that A is a snapshot
-            self.write_file('misc/snapshot',code)
+            self.write_file("misc/snapshot", code)
         finally:
             self._snapshot_lock.release()
 
-    def _enter_snapshot(self,code):
+    def _enter_snapshot(self, code):
         # Called in the flusher thread, therefore there is no problem with concurrent writes.
         self.snapshot_code = code
         self._snapshot_ack.release()
 
-    def leave_snapshot(self,code):
-        if code!=self.snapshot_code:
-            raise DirectoryStorageError('bad code %r!=%r' % (code,self.snapshot_code))
+    def leave_snapshot(self, code):
+        if code != self.snapshot_code:
+            raise DirectoryStorageError("bad code %r!=%r" % (code, self.snapshot_code))
         # Retract our promise to keep A as a snapshot
         self._unlink_snapshot_file()
         # We can not leave snapshot mode immediately because there are
         # files in the B directory that need to be moved into A. Do this asynchronously
         # in the flusher thread.
-        self.snapshot_code = 'recombining/'+self.snapshot_code
-        if code!='startup':
-            logger.log(self.ENGINE_NOISE, 'Preparing to leave snapshot mode %r' % (code,))
+        self.snapshot_code = "recombining/" + self.snapshot_code
+        if code != "startup":
+            logger.log(
+                self.ENGINE_NOISE, "Preparing to leave snapshot mode %r" % (code,)
+            )
         # We are not out of snapshot mode yet. We still need to recombine any
         # writes flushed during this period. Note that we do no call flush_all here. If we have only
         # been in snapshot mode briefly there is a good chance that all writes will still be in the
@@ -444,42 +462,43 @@ class LocalFilesystem(BaseFilesystem):
 
     def _unlink_snapshot_file(self):
         try:
-            self.unlink('misc/snapshot')
+            self.unlink("misc/snapshot")
         except FileDoesNotExist:
             pass
 
-    def _recombine(self,counter=None):
+    def _recombine(self, counter=None):
         # Called from the flusher thread.
         if counter is None:
             counter = self.flush_file_threshold
         try:
-            self._recombine_dir('.',counter)
+            self._recombine_dir(".", counter)
         except QuickExitFromRecombine:
             # Push outselves onto the back of the work queue
             # Escalate the number of files checked each time, to ensure
             # that recombination finishes in bounded time
-            self._async_work_queue.put(lambda: self._recombine(1+int(counter*1.4)))
+            self._async_work_queue.put(lambda: self._recombine(1 + int(counter * 1.4)))
         else:
             # B directory is currently empty, and we must ensure that it
             # stays that way before we start flushing the journal into A
-            self.sync_directory('B')
-            logger.log(self.ENGINE_NOISE, 'Left snapshot mode %r'
-                       % (self.snapshot_code,))
+            self.sync_directory("B")
+            logger.log(
+                self.ENGINE_NOISE, "Left snapshot mode %r" % (self.snapshot_code,)
+            )
             self.snapshot_code = None
             self._have_flushed = 0
 
-    def _recombine_dir(self,directory,counter):
-        for file in self.listdir(os.path.join('B',directory)):
-            path = os.path.join(directory,file)
-            b = os.path.join('B',path)
+    def _recombine_dir(self, directory, counter):
+        for file in self.listdir(os.path.join("B", directory)):
+            path = os.path.join(directory, file)
+            b = os.path.join("B", path)
             if self.isdir(b):
-                a = os.path.join('A',path)
+                a = os.path.join("A", path)
                 # Create any directories needed for this file.
-                self._check_dir(os.path.join(a,'xxxxx'),{})
-                counter = self._recombine_dir(path,counter)
+                self._check_dir(os.path.join(a, "xxxxx"), {})
+                counter = self._recombine_dir(path, counter)
                 self.rmdir(b)
             else:
-                self.overwrite(b,os.path.join('A',path))
+                self.overwrite(b, os.path.join("A", path))
                 if counter:
                     counter -= 1
                     if not counter:
@@ -487,21 +506,21 @@ class LocalFilesystem(BaseFilesystem):
                         # free up the flusher thread and check the journal.
                         raise QuickExitFromRecombine()
 
-    def first_half_write_file(self,filename,content):
+    def first_half_write_file(self, filename, content):
         # Write those bytes to the specified file, and return an object
         # that can be passed to second_half_write_file or
         # abort_half_write_file
         # Many writes will overlap
-        raise NotImplementedError('first_half_write_file')
+        raise NotImplementedError("first_half_write_file")
 
-    def second_half_write_file(self,cookie):
+    def second_half_write_file(self, cookie):
         # Commit the previously written bytes to stable storage
-        raise NotImplementedError('first_half_write_file')
+        raise NotImplementedError("first_half_write_file")
 
-    def abort_half_write_file(self,f):
+    def abort_half_write_file(self, f):
         # Dont waste any more time writing this file to stable storage.
         # This may or may not unlink the file
-        raise NotImplementedError('first_half_write_file')
+        raise NotImplementedError("first_half_write_file")
 
 
 class LocalFilesystemTransaction(BaseFilesystemTransaction):
@@ -509,25 +528,27 @@ class LocalFilesystemTransaction(BaseFilesystemTransaction):
     # BaseStorage maintains a commit lock that ensures that only one instance
     # will be in use at one time.
 
-    def __init__(self,filesystem,tid):
+    def __init__(self, filesystem, tid):
         self.filesystem = filesystem
         self.tid = tid
         # the name of our transaction directory
         dirname = oid2str(tid)
-        self.temp_name = os.path.join('journal','working_%s_temp' % (dirname,))
-        self.done_name = os.path.join('journal','working_%s_done' % (dirname,))
+        self.temp_name = os.path.join("journal", "working_%s_temp" % (dirname,))
+        self.done_name = os.path.join("journal", "working_%s_done" % (dirname,))
         self.curr_name = self.temp_name
         # mapping from name to pair of sort key and half written file in the transaction directory
         self.names = {}
         # create a transaction directory inside the journal directory
         self.filesystem.mkdir(self.temp_name)
 
-    def write(self,name,data):
-        file = self.filesystem.first_half_write_file(os.path.join(self.temp_name,name),data)
-        old = self.names.get(name,None)
+    def write(self, name, data):
+        file = self.filesystem.first_half_write_file(
+            os.path.join(self.temp_name, name), data
+        )
+        old = self.names.get(name, None)
         if old is not None:
             self.filesystem.abort_half_write_file(old[1])
-        pair = len(self.names),file
+        pair = len(self.names), file
         self.names[name] = pair
 
     def vote(self):
@@ -551,10 +572,10 @@ class LocalFilesystemTransaction(BaseFilesystemTransaction):
         self.filesystem.sync_directory(self.temp_name)
         # rename the directory so that recovery knows the
         # transaction has been committed
-        self.filesystem.rename(self.temp_name,self.done_name)
+        self.filesystem.rename(self.temp_name, self.done_name)
         # sync the journal directory, the directory which contains
         # the transaction directory. everything is now safe
-        self.filesystem.sync_directory('journal')
+        self.filesystem.sync_directory("journal")
         # register the transaction directory as containing the current
         # copy of all of these files, in case they have to be read
         # before the flush is complete.
@@ -586,7 +607,7 @@ class LocalFilesystemTransaction(BaseFilesystemTransaction):
         # delete the files
         for name in list(self.names.keys()):
             try:
-                self.filesystem.unlink(os.path.join(self.temp_name,name))
+                self.filesystem.unlink(os.path.join(self.temp_name, name))
             except EnvironmentError:
                 pass
         # delete the transaction directory
@@ -597,7 +618,7 @@ class LocalFilesystemTransaction(BaseFilesystemTransaction):
 
 
 class MultiFlush:
-    def __init__(self,directories,filesystem,reason):
+    def __init__(self, directories, filesystem, reason):
         self.directories = directories
         self.filesystem = filesystem
         self.reason = reason
@@ -611,12 +632,14 @@ class MultiFlush:
 
     def flush(self):
         # Called from the flusher thread to flush multiple transactions
-        logger.log(self.filesystem.ENGINE_NOISE, 'Flushing %d transactions (%s)'
-                   % (len(self.directories),self.reason))
+        logger.log(
+            self.filesystem.ENGINE_NOISE,
+            "Flushing %d transactions (%s)" % (len(self.directories), self.reason),
+        )
         dirmap = {}
         # Move many files from the journal directory to the database directory
         for directory in self.directories:
-            self.filesystem._move_to_database_directory(directory,dirmap)
+            self.filesystem._move_to_database_directory(directory, dirmap)
             if self.filesystem._shutdown_flusher:
                 return
         # we are done with these transaction directories, so can safely delete them
@@ -629,7 +652,6 @@ class MultiFlush:
         # in the backlog queue. This possibly enabled another transaction to finish,
         # if there was a large backlog of finished but unflushed ones
         self.filesystem._backlog_tokens.put(0)
-
 
 
 class QuickExitFromRecombine(Exception):

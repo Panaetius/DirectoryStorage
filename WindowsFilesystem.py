@@ -8,21 +8,34 @@
 # This library is subject to the provisions of the
 # GNU Lesser General Public License version 2.1
 
-import os, struct, stat, errno, hashlib,queue, time, sys, threading, weakref, mimetools
+import errno
+import hashlib
+import mmap
+import os
+import queue
 import shutil
+import stat
+import struct
+import sys
+import threading
+import time
+import weakref
 from os import fsync
 
+import mimetools
+import win32con
+import win32file
+import winerror
+from BTrees.OIBTree import OIBTree
 from zc.lockfile import LockFile
-from ZODB.FileStorage import FileStorage
 from ZODB import POSException
 from ZODB.DB import DB
-from BTrees.OIBTree import OIBTree
+from ZODB.FileStorage import FileStorage
 
-from .utils import z64, z128, oid2str, DirectoryStorageError, loglevel_BLATHER
-from .LocalFilesystem import LocalFilesystem, LocalFilesystemTransaction, FileDoesNotExist
+from .LocalFilesystem import (FileDoesNotExist, LocalFilesystem,
+                              LocalFilesystemTransaction)
+from .utils import DirectoryStorageError, loglevel_BLATHER, oid2str, z64, z128
 
-import win32file, winerror, win32con
-import mmap
 
 class WindowsFilesystem(LocalFilesystem):
     def __init__(self, *args, **kw):
@@ -31,24 +44,24 @@ class WindowsFilesystem(LocalFilesystem):
         # will never, ever work
         self.use_sync = 0
 
-    def transaction(self,tid):
-        return WindowsFilesystemTransaction(self,tid)
+    def transaction(self, tid):
+        return WindowsFilesystemTransaction(self, tid)
 
-    def exists(self,name):
-        return os.path.exists(os.path.join(self.dirname,name))
+    def exists(self, name):
+        return os.path.exists(os.path.join(self.dirname, name))
 
-    def isdir(self,name):
-        return os.path.isdir(os.path.join(self.dirname,name))
+    def isdir(self, name):
+        return os.path.isdir(os.path.join(self.dirname, name))
 
-    def mkdir(self,dir):
-        os.mkdir(os.path.join(self.dirname,dir))
+    def mkdir(self, dir):
+        os.mkdir(os.path.join(self.dirname, dir))
 
-    def sync_directory(self,dir):
+    def sync_directory(self, dir):
         if self.use_sync:
-            p = os.path.join(self.dirname,dir)
+            p = os.path.join(self.dirname, dir)
             # Use os.open here because, mysteriously, it performs better
             # than fopen on linux 2.4.18, reiserfs, glibc 2.2.4
-            f = os.open(p,os.O_RDONLY)
+            f = os.open(p, os.O_RDONLY)
             # Should we worry about EINTR ?
             try:
                 fsync(f)
@@ -56,13 +69,15 @@ class WindowsFilesystem(LocalFilesystem):
                 os.close(f)
 
     def _write_file_win32(self, fullname, content):
-        h = win32file.CreateFile(fullname,
-                                 win32con.GENERIC_WRITE,
-                                 0, # share mode
-                                 None, # security
-                                 win32con.CREATE_ALWAYS, # disposition
-                                 win32con.FILE_ATTRIBUTE_NORMAL, # flags/attributes
-                                 None) # template.
+        h = win32file.CreateFile(
+            fullname,
+            win32con.GENERIC_WRITE,
+            0,  # share mode
+            None,  # security
+            win32con.CREATE_ALWAYS,  # disposition
+            win32con.FILE_ATTRIBUTE_NORMAL,  # flags/attributes
+            None,
+        )  # template.
         try:
             win32file.WriteFile(h, content)
         finally:
@@ -75,7 +90,7 @@ class WindowsFilesystem(LocalFilesystem):
         # by opening the file using win32file.CreateFile, passing
         # FILE_FLAG_NO_BUFFERING.  But for now, twice-as-good using
         # a mmaped file is good enough!
-        f = os.open(fullname,os.O_CREAT|os.O_RDWR|os.O_TRUNC|os.O_BINARY,0o640)
+        f = os.open(fullname, os.O_CREAT | os.O_RDWR | os.O_TRUNC | os.O_BINARY, 0o640)
         try:
             m = mmap.mmap(f, len(content), access=mmap.ACCESS_WRITE)
             try:
@@ -88,45 +103,47 @@ class WindowsFilesystem(LocalFilesystem):
     # The mmap version of _write_file is twice as fast as a win32 version.
     _write_file = _write_file_mmap
 
-    def write_file(self,filename,content):
-        fullname = os.path.join(self.dirname,filename)
+    def write_file(self, filename, content):
+        fullname = os.path.join(self.dirname, filename)
         self._write_file(fullname, content)
 
-    def modify_file(self,filename,offset,content):
-        fullname = os.path.join(self.dirname,filename)
-        f = os.open(fullname,os.O_CREAT|os.O_RDWR|os.O_BINARY,0o640)
+    def modify_file(self, filename, offset, content):
+        fullname = os.path.join(self.dirname, filename)
+        f = os.open(fullname, os.O_CREAT | os.O_RDWR | os.O_BINARY, 0o640)
         try:
-            os.lseek(f,offset,0)
-            os.write(f,content)
+            os.lseek(f, offset, 0)
+            os.write(f, content)
         finally:
             os.close(f)
 
-    def first_half_write_file(self,filename,content):
-        fullname = os.path.join(self.dirname,filename)
+    def first_half_write_file(self, filename, content):
+        fullname = os.path.join(self.dirname, filename)
         self._write_file(fullname, content)
         return fullname
 
-    def second_half_write_file(self,fullname):
+    def second_half_write_file(self, fullname):
         if self.use_sync:
-            f = os.open(fullname,os.O_RDONLY)
+            f = os.open(fullname, os.O_RDONLY)
             try:
                 fsync(f)
             finally:
                 os.close(f)
 
-    def abort_half_write_file(self,f):
+    def abort_half_write_file(self, f):
         pass
 
-    def read_file_mmap(self,filename):
-        full = os.path.join(self.dirname,filename)
+    def read_file_mmap(self, filename):
+        full = os.path.join(self.dirname, filename)
         try:
-            f = os.open(full,os.O_RDONLY|os.O_BINARY)
+            f = os.open(full, os.O_RDONLY | os.O_BINARY)
         except EnvironmentError as e:
             if e.errno == errno.EINTR:
                 # Its wierd, but it happens
                 pass
             elif e.errno == errno.ENOENT:
-                raise FileDoesNotExist('DirectoryStorage file %r does not exist' % (filename,) )
+                raise FileDoesNotExist(
+                    "DirectoryStorage file %r does not exist" % (filename,)
+                )
             else:
                 raise
 
@@ -134,27 +151,33 @@ class WindowsFilesystem(LocalFilesystem):
         os.close(f)
         return m[:]
 
-    def read_file_win32(self,filename):
-        full = os.path.join(self.dirname,filename)
+    def read_file_win32(self, filename):
+        full = os.path.join(self.dirname, filename)
         while 1:
             try:
-                h = win32file.CreateFile(full,
-                                         win32con.GENERIC_READ,
-                                         0, # share mode
-                                         None, # security
-                                         win32con.OPEN_EXISTING, # disposition
-                                         win32con.FILE_FLAG_SEQUENTIAL_SCAN, # flags/attributes
-                                         None) # template.
+                h = win32file.CreateFile(
+                    full,
+                    win32con.GENERIC_READ,
+                    0,  # share mode
+                    None,  # security
+                    win32con.OPEN_EXISTING,  # disposition
+                    win32con.FILE_FLAG_SEQUENTIAL_SCAN,  # flags/attributes
+                    None,
+                )  # template.
             except win32file.error as e:
-                if e[0] in [winerror.ERROR_FILE_NOT_FOUND,
-                            winerror.ERROR_PATH_NOT_FOUND]:
-                    raise FileDoesNotExist('DirectoryStorage file %r does not exist' % (filename,) )
+                if e[0] in [
+                    winerror.ERROR_FILE_NOT_FOUND,
+                    winerror.ERROR_PATH_NOT_FOUND,
+                ]:
+                    raise FileDoesNotExist(
+                        "DirectoryStorage file %r does not exist" % (filename,)
+                    )
                 else:
                     raise
             else:
                 break
         try:
-            return win32file.ReadFile(h,win32file.GetFileSize(h),None)[1]
+            return win32file.ReadFile(h, win32file.GetFileSize(h), None)[1]
         finally:
             h.Close()
 
@@ -162,42 +185,45 @@ class WindowsFilesystem(LocalFilesystem):
     # version (as opposed to writing, which is much faster)
     read_file = read_file_mmap
 
-    def listdir(self,filename,skip_marks=1):
+    def listdir(self, filename, skip_marks=1):
         # Use our C extension
-        return IncListDir(os.path.join(self.dirname,filename),skip_marks)
+        return IncListDir(os.path.join(self.dirname, filename), skip_marks)
 
-    def rename(self,a,b):
-        os.rename(os.path.join(self.dirname,a),os.path.join(self.dirname,b))
+    def rename(self, a, b):
+        os.rename(os.path.join(self.dirname, a), os.path.join(self.dirname, b))
 
-    def overwrite(self,a,b):
-        win32file.MoveFileEx(os.path.join(self.dirname,a),
-                             os.path.join(self.dirname,b),
-                             win32file.MOVEFILE_REPLACE_EXISTING)
+    def overwrite(self, a, b):
+        win32file.MoveFileEx(
+            os.path.join(self.dirname, a),
+            os.path.join(self.dirname, b),
+            win32file.MOVEFILE_REPLACE_EXISTING,
+        )
 
-    def unlink(self,a):
-        full = os.path.join(self.dirname,a)
+    def unlink(self, a):
+        full = os.path.join(self.dirname, a)
         try:
             os.unlink(full)
         except EnvironmentError as e:
             if e.errno == errno.ENOENT:
-                raise FileDoesNotExist('DirectoryStorage file %r does not exist' % (a,))
+                raise FileDoesNotExist("DirectoryStorage file %r does not exist" % (a,))
             else:
                 raise
 
-    def rmdir(self,a):
+    def rmdir(self, a):
         try:
-            os.rmdir(os.path.join(self.dirname,a))
+            os.rmdir(os.path.join(self.dirname, a))
         except os.error:
             raise
-            #print "EEEK - directory not empty - nuking!"
-            shutil.rmtree(os.path.join(self.dirname,a))
+            # print "EEEK - directory not empty - nuking!"
+            shutil.rmtree(os.path.join(self.dirname, a))
 
     _lock_file = None
     _sub_lock_file = None
+
     def _lock(self):
         # In a change since version 1.0, it does not acquire the sub-lock
         if not self._lock_file:
-            self._lock_file = LockFile(os.path.join(self.dirname, 'misc/lock'))
+            self._lock_file = LockFile(os.path.join(self.dirname, "misc/lock"))
 
     def half_unlock(self):
         if self._sub_lock_file:
@@ -206,7 +232,7 @@ class WindowsFilesystem(LocalFilesystem):
 
     def half_relock(self):
         if not self._sub_lock_file:
-            self._sub_lock_file = LockFile(os.path.join(self.dirname, 'misc/sublock'))
+            self._sub_lock_file = LockFile(os.path.join(self.dirname, "misc/sublock"))
 
     def close(self):
         LocalFilesystem.close(self)
@@ -217,12 +243,11 @@ class WindowsFilesystem(LocalFilesystem):
             self._lock_file.close()
             del self._lock_file
 
-    def mark_context(self,base):
+    def mark_context(self, base):
         s = weakref.proxy(self)
-        mc = _mark_policies[self.config.get('windows','mark')](s)
+        mc = _mark_policies[self.config.get("windows", "mark")](s)
         mc.unmark_all(base)
         return mc
-
 
 
 class WindowsFilesystemTransaction(LocalFilesystemTransaction):
@@ -233,11 +258,12 @@ class IncListDir:
     """A scalable equivalent of os.listdir.
     use an C extension module which wrappers opendir/readdir
     """
-    def __init__(self,dir,skip_marks):
+
+    def __init__(self, dir, skip_marks):
         self.iter = win32file.FindFilesIterator(os.path.join(dir, "*"))
         self.skip_marks = skip_marks
 
-    def __getitem__(self,i):
+    def __getitem__(self, i):
         # looks like a sequence when used in a for loop
         while 1:
             try:
@@ -246,49 +272,51 @@ class IncListDir:
                 raise IndexError(i)
 
             item = info[-2]
-            if item=='.' or item=='..':
+            if item == "." or item == "..":
                 pass
-            elif self.skip_marks and item.endswith('.mark'):
+            elif self.skip_marks and item.endswith(".mark"):
                 pass
             else:
                 return item
+
 
 # various _XxxxxMarker classes implement different
 # implementation policies for marking files (as
 # used by the mark/sweep storage packer)
 
+
 class _FileMarker:
     # Files are marked by creating another zero-length file in the
     # same directory, of the same name appended with '.mark'.
-    def __init__(self,fs):
+    def __init__(self, fs):
         self.fs = fs
 
-    def mark(self,a):
-        path = os.path.join(self.fs.dirname, a+'.mark')
-        os.close(os.open(path, os.O_CREAT,0o600))
+    def mark(self, a):
+        path = os.path.join(self.fs.dirname, a + ".mark")
+        os.close(os.open(path, os.O_CREAT, 0o600))
 
-    def unmark(self,a):
+    def unmark(self, a):
         try:
-           self.fs.unlink(a+'.mark')
+            self.fs.unlink(a + ".mark")
         except EnvironmentError as e:
-           if e.errno==errno.ENOENT:
-               pass
-           else:
-               raise
+            if e.errno == errno.ENOENT:
+                pass
+            else:
+                raise
 
-    def is_marked(self,a):
-        path = os.path.join(self.fs.dirname, a+'.mark')
+    def is_marked(self, a):
+        path = os.path.join(self.fs.dirname, a + ".mark")
         return os.path.exists(path)
 
-    def unmark_all(self,a):
-        for file in self.fs.listdir(a,skip_marks=0):
+    def unmark_all(self, a):
+        for file in self.fs.listdir(a, skip_marks=0):
             if self.fs._shutdown_flusher:
-                raise DirectoryStorageError('unmark_all interrupted')
-            path = os.path.join(a,file)
+                raise DirectoryStorageError("unmark_all interrupted")
+            path = os.path.join(a, file)
             if self.fs.isdir(path):
                 self.unmark_all(path)
             else:
-                if file.endswith('.mark'):
+                if file.endswith(".mark"):
                     self.fs.unlink(path)
 
 
@@ -312,15 +340,15 @@ class _AttributesMarker:
     # this process into executing his file during the brief period when
     # is set during packing. This is not an unlikely threat.
 
-    def __init__(self,fs):
+    def __init__(self, fs):
         self.fs = fs
         self.altmark = {}
 
     altmark_limit = 2000
 
-    _uid = 0 # deal with this later - win32security.LookupAccountName(win32api.GetDomainName(), win32api.GetUserName())
+    _uid = 0  # deal with this later - win32security.LookupAccountName(win32api.GetDomainName(), win32api.GetUserName())
 
-    def mark(self,a):
+    def mark(self, a):
         path = os.path.join(self.fs.dirname, a)
         try:
             win32file.SetFileAttributes(path, win32file.FILE_ATTRIBUTE_SYSTEM)
@@ -328,15 +356,17 @@ class _AttributesMarker:
             errno = details[0]
             if errno == winerror.ERROR_ACCESS_DENIED:
                 self.altmark[path] = 1
-                if len(self.altmark)>self.altmark_limit:
-                    raise DirectoryStorageError('Too many files are not owned by %d, %r' % (os.getuid(),path))
+                if len(self.altmark) > self.altmark_limit:
+                    raise DirectoryStorageError(
+                        "Too many files are not owned by %d, %r" % (os.getuid(), path)
+                    )
             elif errno == winerror.ERROR_FILE_NOT_FOUND:
                 # it is not an error to try to mark a file that does not exist
                 pass
             else:
                 raise
 
-    def unmark(self,a):
+    def unmark(self, a):
         path = os.path.join(self.fs.dirname, a)
         try:
             win32file.SetFileAttributes(path, 0)
@@ -344,14 +374,16 @@ class _AttributesMarker:
             errno = details[0]
             if errno == winerror.ERROR_ACCESS_DENIED:
                 self.altmark[path] = 0
-                if len(self.altmark)>self.altmark_limit:
-                    raise DirectoryStorageError('Too many files are not owned by %d, %r' % (os.getuid(),path))
+                if len(self.altmark) > self.altmark_limit:
+                    raise DirectoryStorageError(
+                        "Too many files are not owned by %d, %r" % (os.getuid(), path)
+                    )
             elif e.errno == winerror.ERROR_FILE_NOT_FOUND:
                 pass
             else:
                 raise
 
-    def is_marked(self,a):
+    def is_marked(self, a):
         path = os.path.join(self.fs.dirname, a)
         try:
             return self.altmark[path]
@@ -365,8 +397,8 @@ class _AttributesMarker:
                     raise
             return (attr & win32file.FILE_ATTRIBUTE_SYSTEM) != 0
 
-    def is_marked_stats(self,stats):
-        if (stats[0]&self._mask) == self._expected:
+    def is_marked_stats(self, stats):
+        if (stats[0] & self._mask) == self._expected:
             # it is marked in the normal way
             return 1
         if stats[4] != self._uid:
@@ -376,7 +408,7 @@ class _AttributesMarker:
             return 1
         return 0
 
-    def unmark_all(self,a):
+    def unmark_all(self, a):
         try:
             iter = win32file.FindFilesIterator(os.path.join(a, "*"))
         except win32file.error as details:
@@ -385,17 +417,18 @@ class _AttributesMarker:
             return
         for info in iter:
             if self.fs._shutdown_flusher:
-                raise DirectoryStorageError('unmark_all interrupted')
+                raise DirectoryStorageError("unmark_all interrupted")
             attr = info[0]
             file = info[8]
             if file in (".", ".."):
                 continue
-            path = os.path.join(a,file)
+            path = os.path.join(a, file)
             if attr & win32file.FILE_ATTRIBUTE_DIRECTORY:
                 self.unmark_all(path)
             else:
                 if attr & win32file.FILE_ATTRIBUTE_SYSTEM:
                     self.unmark(path)
+
 
 class _StorageMarker:
     # FileStorageMarker and MinimalStorageMarker store the mark status in
@@ -407,9 +440,9 @@ class _StorageMarker:
     # may improve further on that 80% particularly if the main disk
     # is encrypted, or raid.
 
-    def __init__(self,fs):
+    def __init__(self, fs):
         self.fs = fs
-        self.dir = os.path.join(fs.dirname,'misc','packing')
+        self.dir = os.path.join(fs.dirname, "misc", "packing")
         # ensure that directory exists
         try:
             os.mkdir(self.dir)
@@ -425,7 +458,7 @@ class _StorageMarker:
         self.conn = db.open()
         get_transaction().begin()
         root = self.conn.root()
-        self.tree = root['tree'] = OIBTree()
+        self.tree = root["tree"] = OIBTree()
         get_transaction().commit()
         self.empty = 1
         self.counter = 0
@@ -449,13 +482,13 @@ class _StorageMarker:
             # Delete the directory
             self._clean()
 
-    def _clean(self,base=None):
+    def _clean(self, base=None):
         if base is None:
             base = self.dir
         if base is None:
             return
         for f in os.listdir(base):
-            full = os.path.join(base,f)
+            full = os.path.join(base, f)
             if os.path.isdir(full):
                 self._clean(full)
                 try:
@@ -473,7 +506,9 @@ class _StorageMarker:
         # This is equal to the size of the ZODB cache, plus any nodes created since the last
         # commit. We cant quickly get an accurate count of new nodes, so this is estimated as
         # one new node for every 10 writes.
-        memory_usage_measure = self.counter/10 + self.tree._p_jar._cache.cache_non_ghost_count
+        memory_usage_measure = (
+            self.counter / 10 + self.tree._p_jar._cache.cache_non_ghost_count
+        )
         if memory_usage_measure > 2000:
             # We have 2000 objects in memory. Write the changed ones to disk.
             get_transaction().commit()
@@ -481,91 +516,85 @@ class _StorageMarker:
             self.tree._p_jar.cacheGC()
             self.counter = 0
 
-    def mark(self,a):
+    def mark(self, a):
         self.tree[a] = 1
         self.empty = 0
         self.counter += 1
         self.commit()
 
-    def unmark(self,a):
+    def unmark(self, a):
         self.tree[a] = 0
         self.counter += 1
         self.commit()
 
-    def is_marked(self,a):
-        r = self.tree.get(a,None)
+    def is_marked(self, a):
+        r = self.tree.get(a, None)
         self.commit()
         return r
 
-    def unmark_all(self,a):
+    def unmark_all(self, a):
         if self.empty:
             return
         # When needed, this should be implemented by
         # creating a new storage
-        raise NotImplementedError('unmark_all')
+        raise NotImplementedError("unmark_all")
 
 
 class _FileStorageMarker(_StorageMarker):
-
     def initstorage(self):
         # create the filestorage
-        name = 'marks-%s.fs' % (uuid.uuid4().hex,)
-        self.substorage = FileStorage(os.path.join(self.dir,name))
+        name = "marks-%s.fs" % (uuid.uuid4().hex,)
+        self.substorage = FileStorage(os.path.join(self.dir, name))
+
 
 class _MinimalStorageMarker(_StorageMarker):
-
     def initstorage(self):
-        from . import Minimal
-        from . import mkds
-        name = 'marks-%s' % (uuid.uuid4().hex,)
-        path = os.path.join(self.dir,name)
-        mkds.mkds(path,'Minimal',self.fs.format,sync=0,somemd5s=0)
+        from . import Minimal, mkds
+
+        name = "marks-%s" % (uuid.uuid4().hex,)
+        path = os.path.join(self.dir, name)
+        mkds.mkds(path, "Minimal", self.fs.format, sync=0, somemd5s=0)
         subfs = WindowsFilesystem(path)
         subfs.ENGINE_NOISE = loglevel_BLATHER
         self.substorage = Minimal.Minimal(subfs)
 
 
 class _MemoryMarker:
-    def __init__(self,fs):
+    def __init__(self, fs):
         self.marks = {}
 
-    def mark(self,a):
+    def mark(self, a):
         self.marks[a] = 1
 
-    def unmark(self,a):
+    def unmark(self, a):
         self.marks[a] = 0
 
-    def is_marked(self,a):
-        return self.marks.get(a,0)
+    def is_marked(self, a):
+        return self.marks.get(a, 0)
 
-    def unmark_all(self,a):
+    def unmark_all(self, a):
         self.marks = {}
 
 
 _mark_policies = {
     # The old favorite - store the mark flag inside file attributes.
     # This was the default in 1.1
-    'attributes' : _AttributesMarker,
-
+    "attributes": _AttributesMarker,
     # This used to be the old scalable alternative to 'permissions'.
     # It stores the mark bit as an extra zero length file.
     # Very slow. Not recomended.
-    'file' : _FileMarker,
-
+    "file": _FileMarker,
     # Use a dict in memory. This is the fastest if your storage is small,
     # but memory usage is proportional to storage size.
-    'memory': _MemoryMarker,
-
+    "memory": _MemoryMarker,
     # An experimental option new in 1.1. Feedback on this is appreciated.
     # Use *another* DirectoryStorage to contain a BTree containing mark bits.
     # The ZODB transaction/thread policy means this one has to work in
     # its own thread. See comments in its implementation about relative
     # advantages of this scheme.
-    'Minimal' : _MinimalStorageMarker,
-
+    "Minimal": _MinimalStorageMarker,
     # old name for 'Minimal'. do not use
-    'MinimalStorage' : _MinimalStorageMarker,
-
+    "MinimalStorage": _MinimalStorageMarker,
     # This sucks. do not use
     # 'FileStorage' : _FileStorageMarker,
- }
+}

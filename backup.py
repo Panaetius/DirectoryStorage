@@ -6,47 +6,58 @@
 # GNU Lesser General Public License version 2.1
 
 
+import binascii
+import getopt
+import os
+import stat
+import string
+import sys
+import time
+import traceback
 
-import sys, getopt, os, time, string, stat, binascii, traceback
-from DirectoryStorage.utils import oid2str, ConfigParser, format_filesize, tid2date, DirectoryStorageError
 from DirectoryStorage.formats import formats
 from DirectoryStorage.pipeline import pipeline
 from DirectoryStorage.snapshot import snapshot
-
+from DirectoryStorage.utils import (ConfigParser, DirectoryStorageError,
+                                    format_filesize, oid2str, tid2date)
 
 # path in which this script lives. We assume whatsnew.py is in the same place
-if __name__=='__main__':
+if __name__ == "__main__":
     mypath = sys.argv[0]
 else:
     mypath = __file__
 mypath = os.path.split(os.path.abspath(mypath))[0]
 
 
-
 def main():
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "", ['storage='])
+        opts, args = getopt.getopt(sys.argv[1:], "", ["storage="])
     except getopt.GetoptError:
         # print help information and exit:
         sys.exit(usage())
     storage = None
     for o, a in opts:
-        if o == '--storage':
+        if o == "--storage":
             storage = a
     try:
         s = snapshot(storage)
         s.acquire()
         try:
-            backup_main(s.path,s.snapshot_time,args)
+            backup_main(s.path, s.snapshot_time, args)
         finally:
             s.release()
     except DirectoryStorageError:
-        sys.exit(traceback.format_exception_only(sys.exc_info()[0],sys.exc_info()[1])[0].strip())
+        sys.exit(
+            traceback.format_exception_only(sys.exc_info()[0], sys.exc_info()[1])[
+                0
+            ].strip()
+        )
 
-def backup_main(path,timestamp,argv):
-    if len(argv)<1:
+
+def backup_main(path, timestamp, argv):
+    if len(argv) < 1:
         sys.exit(usage())
-    b = backup(path,timestamp)
+    b = backup(path, timestamp)
     try:
         b.main(argv)
     except:
@@ -55,54 +66,62 @@ def backup_main(path,timestamp,argv):
     else:
         b.commit()
 
+
 class backup:
-    def __init__(self,path,timestamp):
-        self.prefix = 'backup'
+    def __init__(self, path, timestamp):
+        self.prefix = "backup"
         self.timestamp = timestamp
         now = time.time()
-        if self.timestamp>now:
-            sys.exit('ERROR: timestamp in the future')
-        if self.timestamp<now-60*60*12:
-            sys.exit('ERROR: timestamp too far in the past')
+        if self.timestamp > now:
+            sys.exit("ERROR: timestamp in the future")
+        if self.timestamp < now - 60 * 60 * 12:
+            sys.exit("ERROR: timestamp too far in the past")
         self.path = path
-        if not os.path.exists(os.path.join(self.path,'A')):
-            sys.exit('ERROR: %s is not a DirectoryStorage directory.' % self.path)
-        if not os.path.exists(os.path.join(self.path,'backups')):
-            sys.exit('ERROR: %s/backups does not exist.' % self.path)
+        if not os.path.exists(os.path.join(self.path, "A")):
+            sys.exit("ERROR: %s is not a DirectoryStorage directory." % self.path)
+        if not os.path.exists(os.path.join(self.path, "backups")):
+            sys.exit("ERROR: %s/backups does not exist." % self.path)
         self.config = ConfigParser()
-        self.config.read(self.path+'/config/settings')
-        if self.config.get('storage','classname')!='Full':
-            sys.exit('ERROR: this is not a Full storage')
-        format = self.config.get('structure','format')
+        self.config.read(self.path + "/config/settings")
+        if self.config.get("storage", "classname") != "Full":
+            sys.exit("ERROR: this is not a Full storage")
+        format = self.config.get("structure", "format")
         if not format in formats:
-            sys.exit('ERROR: Unknown format %r' % (format,))
+            sys.exit("ERROR: Unknown format %r" % (format,))
         self.filename_munge = formats[format]
-        self.current_tid = open(os.path.join(self.path,'A',self.filename_munge('x.serial'))).read()
+        self.current_tid = open(
+            os.path.join(self.path, "A", self.filename_munge("x.serial"))
+        ).read()
         self._prepare_index()
         self.renames = []
 
-    def main(self,args):
+    def main(self, args):
         while args:
             arg, args = args[0], args[1:]
-            if arg=='prefix':
-                self.prefix,args = args[0], args[1:]
-            elif arg=='full':
+            if arg == "prefix":
+                self.prefix, args = args[0], args[1:]
+            elif arg == "full":
                 self._full_backup()
-            elif arg=='inc':
+            elif arg == "inc":
                 # Create an incremental backup
-                recent,args = args[0], args[1:]
+                recent, args = args[0], args[1:]
                 try:
                     self._incremental_backup(parse_time(recent))
                 except NoPreviousBackups:
-                    print(traceback.format_exception_only(sys.exc_info()[0],sys.exc_info()[1])[0].strip(), file=sys.stderr)
+                    print(
+                        traceback.format_exception_only(
+                            sys.exc_info()[0], sys.exc_info()[1]
+                        )[0].strip(),
+                        file=sys.stderr,
+                    )
             else:
-                sys.exit('ERROR: unknown command %r' % arg)
+                sys.exit("ERROR: unknown command %r" % arg)
 
     def _prepare_index(self):
         try:
-            self.logf = open(os.path.join(self.path, 'backups/tindex'), 'r+')
+            self.logf = open(os.path.join(self.path, "backups/tindex"), "r+")
         except:
-            self.logf = open(os.path.join(self.path, 'backups/tindex'), 'w+')
+            self.logf = open(os.path.join(self.path, "backups/tindex"), "w+")
             self.logf.write(tindex_header())
             self.logf.flush()
             self.seq = 1
@@ -112,129 +131,157 @@ class backup:
             lines = self.logf.readlines()
             seq = 0
             for line in lines:
-                line = string.split(line,'#',1)[0]
+                line = string.split(line, "#", 1)[0]
                 line = string.split(line)
                 if line:
-                    seq = max(seq,int(line[0]))
-            self.seq = seq+1
-        print('This is backup sequence number %d' % (self.seq,), file=sys.stderr)
+                    seq = max(seq, int(line[0]))
+            self.seq = seq + 1
+        print("This is backup sequence number %d" % (self.seq,), file=sys.stderr)
 
     def _full_backup(self):
         # Perform a full backup using tar
-        filename = '%s/backups/%s-%s.tgz' % (self.path,self.prefix,self.seq)
-        print('Creating full backup %r' % (filename,), file=sys.stderr)
-        tmpfilename = '%s/backups/.tmp-%s-%s.tgz' % (self.path,self.prefix,self.seq)
+        filename = "%s/backups/%s-%s.tgz" % (self.path, self.prefix, self.seq)
+        print("Creating full backup %r" % (filename,), file=sys.stderr)
+        tmpfilename = "%s/backups/.tmp-%s-%s.tgz" % (self.path, self.prefix, self.seq)
 
         p = pipeline()
 
         def find():
             os.chdir(self.path)
-            for name in os.listdir('.'):
-                sys.stdout.write(name+'\n')       # just the directory - not its content
-            for name in os.listdir('config'):
-                sys.stdout.write('config/'+name+'\n')
+            for name in os.listdir("."):
+                sys.stdout.write(name + "\n")  # just the directory - not its content
+            for name in os.listdir("config"):
+                sys.stdout.write("config/" + name + "\n")
             sys.stdout.flush()
-            os.execlp('find',      'find', 'A', '-type', 'f', '-not', '-name', '*-deleted' )
+            os.execlp("find", "find", "A", "-type", "f", "-not", "-name", "*-deleted")
 
         def cpio():
             os.chdir(self.path)
-            os.execlp('cpio',      'cpio', '--quiet', '-o', '-H', 'ustar' )
+            os.execlp("cpio", "cpio", "--quiet", "-o", "-H", "ustar")
 
         def gzip():
-            os.execlp('gzip',      'gzip' )
+            os.execlp("gzip", "gzip")
 
-        fd = os.open(tmpfilename,os.O_WRONLY|os.O_CREAT,0o640)
+        fd = os.open(tmpfilename, os.O_WRONLY | os.O_CREAT, 0o640)
         p.set_output(fd)
-        p.run( find, cpio, gzip )
+        p.run(find, cpio, gzip)
         p.close()
         if not p.all_ok():
             sys.exit(1)
         else:
             os.fsync(fd)
             os.close(fd)
-            self.renames.append((tmpfilename,filename))
-            print('    full backup complete, %s' % (filesize(tmpfilename)), file=sys.stderr)
+            self.renames.append((tmpfilename, filename))
+            print(
+                "    full backup complete, %s" % (filesize(tmpfilename)),
+                file=sys.stderr,
+            )
 
-    def _incremental_backup(self,recent):
+    def _incremental_backup(self, recent):
         # 'recent' is a timestamp. We should ignore all backups made after 'recent'
         # when chosing which one to use as our reference for this incremental
         # backup
-        oldseq,timestamp,tid = self.find_rev(recent)
+        oldseq, timestamp, tid = self.find_rev(recent)
         # Now we have the sequence number, timestamp, and transaction id of our incremental
         # backup reference.
-        if tid==self.current_tid and not self.renames:
+        if tid == self.current_tid and not self.renames:
             # The most recent transaction in that backup is the same as the current most
             # recent transaction. That means there is nothing to be backed up.
             print("Ignoring empty incremental backup", file=sys.stderr)
             return
         # Use whatsnew.py to determine the names of all files modified in
         # transactions since that one, use cpio to copy them into an archive, and gzip it.
-        filename = '%s/backups/%s-%s-to-%s.tgz' % (self.path,self.prefix,oldseq,self.seq)
-        tmpfilename = '%s/backups/.tmp-%s-%s-to-%s.tgz' % (self.path,self.prefix,oldseq,self.seq)
-        timestamp = time.strftime('%Y-%m-%d %H:%M:%S GMT', time.gmtime(timestamp))
-        print('Creating incremental backup %r\n    since backup %d at %s\n    which included transaction %s %s' % (filename,oldseq,timestamp,oid2str(tid),tid2date(tid)), file=sys.stderr)
+        filename = "%s/backups/%s-%s-to-%s.tgz" % (
+            self.path,
+            self.prefix,
+            oldseq,
+            self.seq,
+        )
+        tmpfilename = "%s/backups/.tmp-%s-%s-to-%s.tgz" % (
+            self.path,
+            self.prefix,
+            oldseq,
+            self.seq,
+        )
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S GMT", time.gmtime(timestamp))
+        print(
+            "Creating incremental backup %r\n    since backup %d at %s\n    which included transaction %s %s"
+            % (filename, oldseq, timestamp, oid2str(tid), tid2date(tid)),
+            file=sys.stderr,
+        )
 
         p = pipeline()
 
         def whatsnew():
-            cmd = [ sys.executable,  mypath+'/whatsnew.py' ]
+            cmd = [sys.executable, mypath + "/whatsnew.py"]
             cmd.append(oid2str(tid))
-            os.execv(cmd[0],cmd)
+            os.execv(cmd[0], cmd)
 
         def cpio():
             os.chdir(self.path)
-            os.execlp('cpio',      'cpio', '--quiet', '-o', '-H', 'ustar' )
+            os.execlp("cpio", "cpio", "--quiet", "-o", "-H", "ustar")
 
         def gzip():
-            os.execlp('gzip',      'gzip' )
+            os.execlp("gzip", "gzip")
 
-        fd = os.open(tmpfilename,os.O_WRONLY|os.O_CREAT,0o640)
+        fd = os.open(tmpfilename, os.O_WRONLY | os.O_CREAT, 0o640)
         p.set_output(fd)
-        p.run( whatsnew, cpio, gzip )
+        p.run(whatsnew, cpio, gzip)
         p.close()
         if not p.all_ok():
             sys.exit(1)
         else:
             os.fsync(fd)
             os.close(fd)
-            self.renames.append((tmpfilename,filename))
-            print('    incremental backup complete, %s' % (filesize(tmpfilename)), file=sys.stderr)
+            self.renames.append((tmpfilename, filename))
+            print(
+                "    incremental backup complete, %s" % (filesize(tmpfilename)),
+                file=sys.stderr,
+            )
 
-
-    def find_rev(self,goal):
+    def find_rev(self, goal):
         prev_seq = None
-        for line in open(os.path.join(self.path, 'backups/tindex'), 'r').readlines():
-            line = string.split(line,'#',1)[0]
+        for line in open(os.path.join(self.path, "backups/tindex"), "r").readlines():
+            line = string.split(line, "#", 1)[0]
             line = string.split(line)
             if line:
                 seq = int(line[0])
                 timestamp = int(line[1])
                 tid = line[2]
-                if timestamp>goal:
+                if timestamp > goal:
                     break
                 else:
-                    prev_seq,prev_timestamp,prev_tid = seq,timestamp,tid
+                    prev_seq, prev_timestamp, prev_tid = seq, timestamp, tid
         # a backup made after our target timestamp; use the previous one
         if prev_seq is None:
-            raise NoPreviousBackups('ERROR: No previous backup found. incremental backup impossible')
+            raise NoPreviousBackups(
+                "ERROR: No previous backup found. incremental backup impossible"
+            )
         else:
-            return prev_seq,prev_timestamp,binascii.a2b_hex(prev_tid)
+            return prev_seq, prev_timestamp, binascii.a2b_hex(prev_tid)
 
     def commit(self):
         if self.renames:
-            self.logf.seek(0,2)
-            self.logf.write('%-5d %-12d %s\n' % (self.seq,self.timestamp,oid2str(self.current_tid)))
+            self.logf.seek(0, 2)
+            self.logf.write(
+                "%-5d %-12d %s\n"
+                % (self.seq, self.timestamp, oid2str(self.current_tid))
+            )
             # TODO fsync it
             while self.renames:
-                tmpfilename,filename = self.renames.pop()
-                os.rename(tmpfilename,filename)
+                tmpfilename, filename = self.renames.pop()
+                os.rename(tmpfilename, filename)
         else:
-            print('No backups needed, not writing an entry into the index file', file=sys.stderr)
+            print(
+                "No backups needed, not writing an entry into the index file",
+                file=sys.stderr,
+            )
 
     def abort(self):
         while self.renames:
-            tmpfilename,filename = self.renames.pop()
+            tmpfilename, filename = self.renames.pop()
             os.unlink(tmpfilename)
+
 
 def parse_time(t):
     # Parse the command line parameter which contains the incremental backup
@@ -246,7 +293,7 @@ def parse_time(t):
         # Pass it to the 'date' command, which does a nice job of parsing times.
         # This allows nice things like "36 hours ago". Currently this uses a GNU
         # extension to dump the date as seconds since the epoch.
-        f = os.popen('date --date "'+t+'" +%s')
+        f = os.popen('date --date "' + t + '" +%s')
         c = f.read()
         if f.close():
             raise ValueError(t)
@@ -255,6 +302,7 @@ def parse_time(t):
 
 class NoPreviousBackups(Exception):
     pass
+
 
 def filesize(filename):
     size = os.stat(filename)[stat.ST_SIZE]
@@ -269,6 +317,7 @@ def tindex_header():
 #                  last transaction id included in the backup
 
 """
+
 
 def usage():
     return """Usage: %s [options] [commands]
@@ -302,7 +351,10 @@ Commands are:
         "36 hours ago"), or can be specified in seconds since the
         epoch. The backup tar file is written to
         (directory)/backups/(prefix)-mmm-to-nnn.tgz
-""" % os.path.basename(sys.argv[0])
+""" % os.path.basename(
+        sys.argv[0]
+    )
 
-if __name__=='__main__':
+
+if __name__ == "__main__":
     main()

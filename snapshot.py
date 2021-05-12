@@ -5,39 +5,61 @@
 # This library is subject to the provisions of the
 # GNU Lesser General Public License version 2.1
 
-import os, sys, time, urllib.request, urllib.parse, urllib.error, string, base64, socket, getopt, traceback
+import base64
+import getopt
+import os
+import socket
+import string
+import sys
+import time
+import traceback
+import urllib.error
+import urllib.parse
+import urllib.request
 
 try:
     import ZODB
 except ImportError:
-    print('Failure to import ZODB is often caused by an incorrect PYTHONPATH environment variable', file=sys.stderr)
+    print(
+        "Failure to import ZODB is often caused by an incorrect PYTHONPATH environment variable",
+        file=sys.stderr,
+    )
     raise
+
+import xmlrpc.client
 
 from zc.lockfile import LockFile
 from ZODB.POSException import POSError
-import xmlrpc.client
-from .utils import DirectoryStorageError
+
 from .Filesystem import Filesystem
+from .utils import DirectoryStorageError
+
 
 class xmlrpclib_auth_Transport(xmlrpc.client.Transport):
-    def __init__(self,username,password):
-        self.auth = 'Basic '+string.replace(base64.encodestring('%s:%s' % (username,password)),'\012','')
+    def __init__(self, username, password):
+        self.auth = "Basic " + string.replace(
+            base64.encodestring("%s:%s" % (username, password)), "\012", ""
+        )
 
-    def send_user_agent(self,connection):
-        connection.putheader('Authorization',self.auth)
-        connection.putheader("User-Agent", 'DirectoryStorage snapshot.py tool')
+    def send_user_agent(self, connection):
+        connection.putheader("Authorization", self.auth)
+        connection.putheader("User-Agent", "DirectoryStorage snapshot.py tool")
+
 
 class URLopener(urllib.request.FancyURLopener):
-    def __init__(self,name,password):
-        urllib.request.FancyURLopener.__init__(self,{})
-        self.name,self.password = name,password
+    def __init__(self, name, password):
+        urllib.request.FancyURLopener.__init__(self, {})
+        self.name, self.password = name, password
+
     def prompt_user_passwd(self, host, realm):
-        return self.name,self.password
+        return self.name, self.password
 
 
 def main():
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "vqt:s:", ['storage=','snapshot-conf='])
+        opts, args = getopt.getopt(
+            sys.argv[1:], "vqt:s:", ["storage=", "snapshot-conf="]
+        )
     except getopt.GetoptError:
         # print help information and exit:
         sys.exit(usage())
@@ -45,81 +67,92 @@ def main():
     end_time = time.time()
     sleep_time = 10
     path = None
-    config = '-'
+    config = "-"
     for o, a in opts:
-        if o == '--storage':
+        if o == "--storage":
             path = a
-        elif o == '--snapshot-conf':
+        elif o == "--snapshot-conf":
             config = a
-        elif o == '-v':
+        elif o == "-v":
             verbose += 1
-        elif o == '-q':
+        elif o == "-q":
             verbose -= 1
-        elif o=='-t':
+        elif o == "-t":
             end_time += int(a)
-        elif o=='-s':
+        elif o == "-s":
             sleep_time = int(a)
     if path is None:
         # The pre-1.1.10 command line format
         if len(args) < 3:
             sys.exit(usage())
-        path,config,command = args[0], args[1], args[2:]
+        path, config, command = args[0], args[1], args[2:]
     else:
         command = args[:]
     try:
         while 1:
             try:
-                s = snapshot(path,config,verbose)
+                s = snapshot(path, config, verbose)
                 s.acquire()
             except DirectoryStorageError:
-                if time.time()>end_time:
+                if time.time() > end_time:
                     raise
                 else:
-                    if verbose>=0:
-                        msg = traceback.format_exception_only(sys.exc_info()[0],sys.exc_info()[1])[0].strip()
-                        print('Retrying snapshot.... (%s)' % msg, file=sys.stderr)
+                    if verbose >= 0:
+                        msg = traceback.format_exception_only(
+                            sys.exc_info()[0], sys.exc_info()[1]
+                        )[0].strip()
+                        print("Retrying snapshot.... (%s)" % msg, file=sys.stderr)
                     time.sleep(sleep_time)
             else:
                 break
         if command:
-            exit_code = os.spawnvp(os.P_WAIT,command[0],command)
+            exit_code = os.spawnvp(os.P_WAIT, command[0], command)
         else:
             exit_code = 0
         s.release()
         sys.exit(exit_code)
     except DirectoryStorageError:
-        sys.exit(traceback.format_exception_only(sys.exc_info()[0],sys.exc_info()[1])[0].strip())
+        sys.exit(
+            traceback.format_exception_only(sys.exc_info()[0], sys.exc_info()[1])[
+                0
+            ].strip()
+        )
+
 
 class snapshot:
-    def __init__(self,path,config='-',verbose=0):
+    def __init__(self, path, config="-", verbose=0):
         self.verbose = verbose
         self.path = path
         self.config = config
 
     def acquire(self):
-        ver = os.environ.get('SNAPSHOT_VERSION')
+        ver = os.environ.get("SNAPSHOT_VERSION")
         if ver is None:
             if self.path is None:
-                raise DirectoryStorageError('Must be run with --storage parameter, or under snapshot.py tool')
-        elif ver!='2':
-            raise DirectoryStorageError('ERROR: wrong version of snapshot.py tool')
+                raise DirectoryStorageError(
+                    "Must be run with --storage parameter, or under snapshot.py tool"
+                )
+        elif ver != "2":
+            raise DirectoryStorageError("ERROR: wrong version of snapshot.py tool")
         else:
-            env_path = os.environ['SNAPSHOT_DIRECTORY']
+            env_path = os.environ["SNAPSHOT_DIRECTORY"]
             if self.path is not None and self.path != env_path:
-                raise DirectoryStorageError('directories different')
-            self.snapshot_time = int(os.environ['SNAPSHOT_TIMESTAMP'])
+                raise DirectoryStorageError("directories different")
+            self.snapshot_time = int(os.environ["SNAPSHOT_TIMESTAMP"])
             self.path = env_path
             self.closer = None
             self.f = None
             return
 
-        if not os.path.exists(os.path.join(self.path,'A')):
-            raise DirectoryStorageError('%r is not a DirectoryStorage directory.' % self.path)
-        if self.config == '-':
-            self.config = os.path.join(self.path,'config','snapshot.conf')
+        if not os.path.exists(os.path.join(self.path, "A")):
+            raise DirectoryStorageError(
+                "%r is not a DirectoryStorage directory." % self.path
+            )
+        if self.config == "-":
+            self.config = os.path.join(self.path, "config", "snapshot.conf")
 
         self.snapshot_time = time.time()
-        closer = process_config_file(self.config,self.verbose,self.path)
+        closer = process_config_file(self.config, self.verbose, self.path)
         # At this point we are in one of four states:
         # 1. We have forced the storage into snapshot mode, closer is not None
         #    and we can therefore certainly lock the directory
@@ -135,54 +168,56 @@ class snapshot:
         #    Locking will fail.
         #
         # The procedure for establishing this is documented in doc/snapshot
-        f = LockFile(os.path.join(self.path, 'misc/sublock'))
-        if self.verbose>=0:
-            print('Locked snapshot mode', file=sys.stderr)
-        if not os.path.exists(os.path.join(self.path, 'misc/snapshot')):
+        f = LockFile(os.path.join(self.path, "misc/sublock"))
+        if self.verbose >= 0:
+            print("Locked snapshot mode", file=sys.stderr)
+        if not os.path.exists(os.path.join(self.path, "misc/snapshot")):
             if closer is not None:
                 closer()
-            raise DirectoryStorageError('directory is not a snapshot')
+            raise DirectoryStorageError("directory is not a snapshot")
         self.closer = closer
         self.f = f
-        os.environ['SNAPSHOT_VERSION'] = '2'
-        os.environ['SNAPSHOT_DIRECTORY'] = self.path
-        os.environ['SNAPSHOT_TIMESTAMP'] = str(int(self.snapshot_time))
+        os.environ["SNAPSHOT_VERSION"] = "2"
+        os.environ["SNAPSHOT_DIRECTORY"] = self.path
+        os.environ["SNAPSHOT_TIMESTAMP"] = str(int(self.snapshot_time))
 
     def release(self):
         if self.f is not None:
             self.f.close()
-            del os.environ['SNAPSHOT_VERSION']
-            del os.environ['SNAPSHOT_DIRECTORY']
-            del os.environ['SNAPSHOT_TIMESTAMP']
-            if self.verbose>=0:
-                print('Unlocked snapshot mode', file=sys.stderr)
+            del os.environ["SNAPSHOT_VERSION"]
+            del os.environ["SNAPSHOT_DIRECTORY"]
+            del os.environ["SNAPSHOT_TIMESTAMP"]
+            if self.verbose >= 0:
+                print("Unlocked snapshot mode", file=sys.stderr)
         if self.closer is not None:
             self.closer()
-            if self.verbose>=0:
-                print('Left snapshot mode', file=sys.stderr)
+            if self.verbose >= 0:
+                print("Left snapshot mode", file=sys.stderr)
 
 
-def process_config_file(config,verbose,path):
+def process_config_file(config, verbose, path):
     number = 0
-    code = socket.gethostname()+'-'+str(os.getpid())
+    code = socket.gethostname() + "-" + str(os.getpid())
     use_last_resort_direct = 1
     try:
         lines = open(config).readlines()
     except EnvironmentError:
-        if verbose>=0:
-            print('failed to open %s'  % (config,), file=sys.stderr)
-        lines = ['direct']
-    for line in lines + ['last_resort_direct']:
+        if verbose >= 0:
+            print("failed to open %s" % (config,), file=sys.stderr)
+        lines = ["direct"]
+    for line in lines + ["last_resort_direct"]:
         number += 1
         line = line.strip().split()
         if not line:
             pass
-        elif len(line)==3 and line[0]=='http':
-            url,access = line[1], line[2]
-            access_filename = os.path.join(os.path.split(config)[0],access)
+        elif len(line) == 3 and line[0] == "http":
+            url, access = line[1], line[2]
+            access_filename = os.path.join(os.path.split(config)[0], access)
             access_data = open(access_filename).readline()
-            name,password = [ s.strip() for s in access_data.split(':')[:2] ]
-            toolkit = xmlrpc.client.Server(url,transport=xmlrpclib_auth_Transport(name,password))
+            name, password = [s.strip() for s in access_data.split(":")[:2]]
+            toolkit = xmlrpc.client.Server(
+                url, transport=xmlrpclib_auth_Transport(name, password)
+            )
             try:
                 toolkit.enterSnapshot(code)
             except xmlrpc.client.Fault:
@@ -190,15 +225,19 @@ def process_config_file(config,verbose,path):
             except socket.error:
                 pass
             else:
-                def closer(toolkit=toolkit,code=code):
+
+                def closer(toolkit=toolkit, code=code):
                     toolkit.leaveSnapshot(code)
-                if verbose>=0:
-                    print('Entered snapshot using %s'  % (url,), file=sys.stderr)
+
+                if verbose >= 0:
+                    print("Entered snapshot using %s" % (url,), file=sys.stderr)
                 return closer
-        elif line[0] == 'nodirect':
+        elif line[0] == "nodirect":
             use_last_resort_direct = 0
-        elif line[0] in ('direct','last_resort_direct'):
-            if line[0] == 'direct' or (line[0] == 'last_resort_direct' and use_last_resort_direct):
+        elif line[0] in ("direct", "last_resort_direct"):
+            if line[0] == "direct" or (
+                line[0] == "last_resort_direct" and use_last_resort_direct
+            ):
                 use_last_resort_direct = 0
                 try:
                     fs = Filesystem(path)
@@ -208,12 +247,12 @@ def process_config_file(config,verbose,path):
                 except DirectoryStorageError:
                     pass
                 else:
-                    if verbose>=0:
-                        print('Entered snapshot using direct access', file=sys.stderr)
+                    if verbose >= 0:
+                        print("Entered snapshot using direct access", file=sys.stderr)
                     return None
         else:
-            if verbose>=0:
-                print('malformed line %d in %s' % (number,config), file=sys.stderr)
+            if verbose >= 0:
+                print("malformed line %d in %s" % (number, config), file=sys.stderr)
             # formerly a hard error - not since 1.1.12
     return None
 
@@ -233,7 +272,6 @@ def process_config_file(config,verbose,path):
 # > ClientStorage that connects to it. snapshot.py is often run from
 # > privelidged admin accounts, so connecting using ClientStorage would be
 # > dangerous.
-
 
 
 def usage():
@@ -296,7 +334,10 @@ executed with the following environment variables defined:
 
   SNAPSHOT_TIMESTAMP
     A timestamp shortly before entering snapshot mode
-""" % os.path.basename(sys.argv[0])
+""" % os.path.basename(
+        sys.argv[0]
+    )
 
-if __name__=='__main__':
+
+if __name__ == "__main__":
     main()

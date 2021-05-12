@@ -6,16 +6,20 @@
 # GNU Lesser General Public License version 2.1
 
 
+import getopt
+import os
+import sys
+import traceback
 
-import sys, getopt, os, traceback
-from ZODB.FileStorage import FileStorage
-from DirectoryStorage.utils import DirectoryStorageError
 from DirectoryStorage.FullSimpleIterator import FullSimpleIterator
 from DirectoryStorage.snapshot import snapshot
+from DirectoryStorage.utils import DirectoryStorageError
+from ZODB.FileStorage import FileStorage
+
 
 def main():
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "vq", ['storage='])
+        opts, args = getopt.getopt(sys.argv[1:], "vq", ["storage="])
     except getopt.GetoptError:
         # print help information and exit:
         sys.exit(usage())
@@ -25,11 +29,11 @@ def main():
     verbose = 0
     storage = None
     for o, a in opts:
-        if o == '-v':
+        if o == "-v":
             verbose += 1
-        elif o == '-q':
+        elif o == "-q":
             verbose -= 1
-        elif o == '--storage':
+        elif o == "--storage":
             storage = a
     try:
         s = snapshot(storage)
@@ -39,23 +43,27 @@ def main():
         finally:
             s.release()
     except DirectoryStorageError:
-        sys.exit(traceback.format_exception_only(sys.exc_info()[0],sys.exc_info()[1])[0].strip())
+        sys.exit(
+            traceback.format_exception_only(sys.exc_info()[0], sys.exc_info()[1])[
+                0
+            ].strip()
+        )
 
-def ds2fs(dspath,fspath,verbose):
+
+def ds2fs(dspath, fspath, verbose):
     # Create an object that can get data out of a DirectoryStorage using the crazy
     # ZODB iterator interface. See that class for documentation about how it gets its
     # data
-    it = FullSimpleIterator(dspath,verbose)
+    it = FullSimpleIterator(dspath, verbose)
     #
     # Create a new FileStorage. check for existence first to avoid accidental damage
     if os.path.exists(fspath):
-        sys.exit('ERROR: %s already exists' % fspath)
+        sys.exit("ERROR: %s already exists" % fspath)
     fs = FileStorage(fspath)
     #
     fs.copyTransactionsFrom(it)
     #
-    print('Imported to:', fspath, file=sys.stderr)
-
+    print("Imported to:", fspath, file=sys.stderr)
 
 
 def usage():
@@ -69,7 +77,10 @@ Options are:
 
         The full path to the storage. May only be omitted if run
         under the snapshot.py tool.
-""" % os.path.basename(sys.argv[0])
+""" % os.path.basename(
+        sys.argv[0]
+    )
 
-if __name__=='__main__':
+
+if __name__ == "__main__":
     main()

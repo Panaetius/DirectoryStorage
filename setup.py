@@ -7,19 +7,19 @@
 # for more details on the installation process
 
 import sys
-from setuptools import setup
 from distutils.extension import Extension
+
+from setuptools import setup
 
 # TODO: install DirectoryStorage-overrides.zcml into
 # $HOME/etc/package-includes if the latter exists and --home is used
 
-packages = ['DirectoryStorage',
-            'DirectoryStorage.browser',
-            'DirectoryStorage.tests']
-package_dir = {'DirectoryStorage': '.'}
-package_data = {'DirectoryStorage':         ['component.xml'],
-                'DirectoryStorage.browser': ['zodbcontrol.pt',
-                                             'configure.zcml']}
+packages = ["DirectoryStorage", "DirectoryStorage.browser", "DirectoryStorage.tests"]
+package_dir = {"DirectoryStorage": "."}
+package_data = {
+    "DirectoryStorage": ["component.xml"],
+    "DirectoryStorage.browser": ["zodbcontrol.pt", "configure.zcml"],
+}
 ext_modules = []
 
 setup(
@@ -49,23 +49,23 @@ And more ... look at http://dirstorage.sourceforge.net
     url="http://dirstorage.sourceforge.net",
     download_url="https://sourceforge.net/projects/dirstorage/",
     license="GPL 2.1",
-    platforms=['any'],
-    packages = packages,
-    package_dir = package_dir,
-    package_data = package_data,
-    ext_modules = ext_modules,
-    install_requires = ['zc.lockfile>=1.0.0'],
-    entry_points = {
-        'console_scripts': [
-            'dirstorage_backup = DirectoryStorage.backup:main',
-            'dirstorage_checkds = DirectoryStorage.checkds:main',
-            'dirstorage_ds2fs = DirectoryStorage.ds2fs:main',
-            'dirstorage_dumpdsf = DirectoryStorage.dumpdsf:main',
-            'dirstorage_fs2ds = DirectoryStorage.fs2ds:main',
-            'dirstorage_mkds = DirectoryStorage.mkds:main',
-            'dirstorage_replica = DirectoryStorage.replica:main',
-            'dirstorage_snapshot = DirectoryStorage.snapshot:main',
-            'dirstorage_whatsnew = DirectoryStorage.whatsnew:main',
+    platforms=["any"],
+    packages=packages,
+    package_dir=package_dir,
+    package_data=package_data,
+    ext_modules=ext_modules,
+    install_requires=["zc.lockfile>=1.0.0"],
+    entry_points={
+        "console_scripts": [
+            "dirstorage_backup = DirectoryStorage.backup:main",
+            "dirstorage_checkds = DirectoryStorage.checkds:main",
+            "dirstorage_ds2fs = DirectoryStorage.ds2fs:main",
+            "dirstorage_dumpdsf = DirectoryStorage.dumpdsf:main",
+            "dirstorage_fs2ds = DirectoryStorage.fs2ds:main",
+            "dirstorage_mkds = DirectoryStorage.mkds:main",
+            "dirstorage_replica = DirectoryStorage.replica:main",
+            "dirstorage_snapshot = DirectoryStorage.snapshot:main",
+            "dirstorage_whatsnew = DirectoryStorage.whatsnew:main",
         ],
-    }
+    },
 )

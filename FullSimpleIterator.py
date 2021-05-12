@@ -1,7 +1,13 @@
-import sys, os, errno, binascii, struct
-from .utils import oid2str, ConfigParser, DirectoryStorageError, tid2date
+import binascii
+import errno
+import os
+import struct
+import sys
+
 from .formats import formats
 from .Full import _tid_filename as Full_tid_filename
+from .utils import ConfigParser, DirectoryStorageError, oid2str, tid2date
+
 
 class FullSimpleIterator:
     # Most ZODB storages have an iterator() method, but the semantics of that
@@ -24,17 +30,17 @@ class FullSimpleIterator:
     # for the storage/keep_policy configuration file option, which intentionally
     # drop some transaction metadata to save disk space.
     #
-    def __init__(self,dspath,verbose):
+    def __init__(self, dspath, verbose):
         self.used = 0
         self.dspath = dspath
         self.verbose = verbose
         self.config = ConfigParser()
-        self.config.read(dspath+'/config/settings')
-        if self.config.get('storage','classname')!='Full':
-            sys.exit('ERROR: this is not a Full storage')
-        format = self.config.get('structure','format')
+        self.config.read(dspath + "/config/settings")
+        if self.config.get("storage", "classname") != "Full":
+            sys.exit("ERROR: this is not a Full storage")
+        format = self.config.get("structure", "format")
         if not format in formats:
-            sys.exit('ERROR: Unknown format %r' % (format,))
+            sys.exit("ERROR: Unknown format %r" % (format,))
         self.filename_munge = formats[format]
 
     def close(self):
@@ -42,7 +48,7 @@ class FullSimpleIterator:
 
     def iterator(self):
         if self.used:
-            raise ValueError('can only be called once')
+            raise ValueError("can only be called once")
         self.used = 1
         # FIXME: will this list of transaction ids get too long to conveniently fit in memory?
         self.find_all_transaction_ids()
@@ -52,9 +58,9 @@ class FullSimpleIterator:
 
     def find_all_transaction_ids(self):
         self.all_transaction_ids = r = []
-        if self.verbose>=0:
-            print('Finding all DirectoryStorage Transaction Ids.....', file=sys.stderr)
-        old_tid = tid = self.read('x.serial')
+        if self.verbose >= 0:
+            print("Finding all DirectoryStorage Transaction Ids.....", file=sys.stderr)
+        old_tid = tid = self.read("x.serial")
         while 1:
             strtid = oid2str(tid)
             try:
@@ -67,45 +73,59 @@ class FullSimpleIterator:
             r.append(tid)
             old_tid = tid
             tid = data[24:32]
-        if self.verbose>=0:
-            print('Found %d Transactions.....' % len(self.all_transaction_ids), file=sys.stderr)
-        if self.verbose>=1:
-            print('Earliest transaction file is %s dated %s.....' % (binascii.b2a_hex(old_tid),tid2date(old_tid)), file=sys.stderr)
-            print('Transaction before that one is %s dated %s.....' % (binascii.b2a_hex(tid),tid2date(tid)), file=sys.stderr)
+        if self.verbose >= 0:
+            print(
+                "Found %d Transactions....." % len(self.all_transaction_ids),
+                file=sys.stderr,
+            )
+        if self.verbose >= 1:
+            print(
+                "Earliest transaction file is %s dated %s....."
+                % (binascii.b2a_hex(old_tid), tid2date(old_tid)),
+                file=sys.stderr,
+            )
+            print(
+                "Transaction before that one is %s dated %s....."
+                % (binascii.b2a_hex(tid), tid2date(tid)),
+                file=sys.stderr,
+            )
 
-    def read(self,database_filename):
-        return open(os.path.join(self.dspath,'A',self.filename_munge(database_filename))).read()
+    def read(self, database_filename):
+        return open(
+            os.path.join(self.dspath, "A", self.filename_munge(database_filename))
+        ).read()
 
-    def __getitem__(self,i):
+    def __getitem__(self, i):
         # Waaaah - using an iterator would be so much nicer, but we want to be compatible with python 2.1.
-        return TransactionRecord(self,self.all_transaction_ids[i])
+        return TransactionRecord(self, self.all_transaction_ids[i])
+
 
 class TransactionRecord:
-    def __init__(self,it,tid):
+    def __init__(self, it, tid):
         self._it = it
         # These two values are needed by copyTransactionsFrom
         self.tid = tid
-        self.status = ' '
+        self.status = " "
         #
         strtid = oid2str(tid)
         data = self._it.read(Full_tid_filename(tid))
-        lenu,lend,lene,leno,lenv = struct.unpack('!HHHIH',data[48:60])
+        lenu, lend, lene, leno, lenv = struct.unpack("!HHHIH", data[48:60])
         # These three value are needed when copyTransactionsFrom uses
         # this object as the transaction parameter to tpc_begin
-        self.user = data[60:60+lenu]
-        self.description = data[60+lenu:60+lenu+lend]
-        self._extension = data[60+lenu+lend:60+lenu+lend+lene]
+        self.user = data[60 : 60 + lenu]
+        self.description = data[60 + lenu : 60 + lenu + lend]
+        self._extension = data[60 + lenu + lend : 60 + lenu + lend + lene]
         # used for traversal later
-        self.oidblock = data[60+lenu+lend+lene:60+lenu+lend+lene+leno]
-        assert 0==(len(self.oidblock)%8)
+        self.oidblock = data[60 + lenu + lend + lene : 60 + lenu + lend + lene + leno]
+        assert 0 == (len(self.oidblock) % 8)
 
-    def __getitem__(self,i):
+    def __getitem__(self, i):
         strtid = oid2str(self.tid)
         while self.oidblock:
-            oid,self.oidblock = self.oidblock[:8],self.oidblock[8:]
+            oid, self.oidblock = self.oidblock[:8], self.oidblock[8:]
             stroid = oid2str(oid)
             try:
-                odata = self._it.read('o'+stroid+'.'+strtid)
+                odata = self._it.read("o" + stroid + "." + strtid)
             except IOError as e:
                 if e.errno == errno.ENOENT:
                     pass
@@ -113,20 +133,21 @@ class TransactionRecord:
                     raise
             else:
                 prevtid = odata[56:64]
-                if len(odata)==72:
+                if len(odata) == 72:
                     # George Bailey object
                     data = None
                 else:
                     data = odata[72:]
-                return ObjectRevisionRecord(oid,self.tid,data)
+                return ObjectRevisionRecord(oid, self.tid, data)
         raise IndexError(i)
 
-class ObjectRevisionRecord:
-    version = ''
-    data_txn = None
-    def __init__(self,oid,tid,data):
-        self.oid = oid
-        self.serial = tid # for older zodb version
-        self.tid = tid    # for newer
-        self.data = data
 
+class ObjectRevisionRecord:
+    version = ""
+    data_txn = None
+
+    def __init__(self, oid, tid, data):
+        self.oid = oid
+        self.serial = tid  # for older zodb version
+        self.tid = tid  # for newer
+        self.data = data

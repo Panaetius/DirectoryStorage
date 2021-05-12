@@ -5,21 +5,22 @@
 #
 from zope.app.applicationcontrol.browser.zodbcontrol import ZODBControlView
 
-class DirectoryStorageControlView(ZODBControlView):
 
+class DirectoryStorageControlView(ZODBControlView):
     def enterSnapshot(self, code=None):
         db = self.request.publication.db
-        db._storage.enter_snapshot(code or 'toolkit')
-        self.request.response.redirect('@@ZODBControl.html')
+        db._storage.enter_snapshot(code or "toolkit")
+        self.request.response.redirect("@@ZODBControl.html")
 
     def leaveSnapshot(self, code=None):
         db = self.request.publication.db
-        db._storage.leave_snapshot(code or 'toolkit')
-        self.request.response.redirect('@@ZODBControl.html')
+        db._storage.leave_snapshot(code or "toolkit")
+        self.request.response.redirect("@@ZODBControl.html")
 
     def _currentSnapshotCode(self):
         db = self.request.publication.db
         return db._storage.get_snapshot_code()
+
     currentSnapshotCode = property(_currentSnapshotCode)
 
     def isDirectoryStorage(self):

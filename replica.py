@@ -6,29 +6,42 @@
 # GNU Lesser General Public License version 2.1
 
 
-import sys, getopt, os, time, string, stat, binascii, hashlib, tempfile, stat, traceback
+import binascii
+import getopt
+import hashlib
+import os
+import stat
+import string
+import sys
+import tempfile
+import time
+import traceback
 
 try:
     import ZODB
 except ImportError:
-    print('Failure to import ZODB is often caused by an incorrect PYTHONPATH environment variable', file=sys.stderr)
+    print(
+        "Failure to import ZODB is often caused by an incorrect PYTHONPATH environment variable",
+        file=sys.stderr,
+    )
     raise
 
 from ZODB.POSException import POSError
-from .utils import oid2str, ConfigParser, tid2date, format_filesize, DirectoryStorageError
-from .formats import formats
-from .snapshot import snapshot
+
 from . import Full
-from .PosixFilesystem import PosixFilesystem
+from .formats import formats
 from .pipeline import pipeline
+from .PosixFilesystem import PosixFilesystem
+from .snapshot import snapshot
+from .utils import (ConfigParser, DirectoryStorageError, format_filesize,
+                    oid2str, tid2date)
 
 # path in which this script lives. We assume whatsnew.py is in the same place
-if __name__=='__main__':
+if __name__ == "__main__":
     mypath = sys.argv[0]
 else:
     mypath = __file__
 mypath = os.path.split(os.path.abspath(mypath))[0]
-
 
 
 def main():
@@ -40,20 +53,20 @@ def main():
     if len(args) != 2:
         sys.exit(usage())
     remoteargs, localargs = args
-    if remoteargs=='+':
+    if remoteargs == "+":
         # We are running on the master
         r = replica_master(localargs)
     else:
         # We are running on the replica
         r = replica_slave(remoteargs, localargs)
     for o, a in opts:
-        if o == '-v':
+        if o == "-v":
             r.verbose += 1
-        elif o == '-q':
+        elif o == "-q":
             r.verbose -= 1
-        elif o == '-d':
+        elif o == "-d":
             r.ripath = a
-        elif o == '-e':
+        elif o == "-e":
             a = a.split()
             if a:
                 r.ssh = a
@@ -62,50 +75,56 @@ def main():
     try:
         r.main()
     except DirectoryStorageError:
-        sys.exit(traceback.format_exception_only(sys.exc_info()[0],sys.exc_info()[1])[0].strip())
+        sys.exit(
+            traceback.format_exception_only(sys.exc_info()[0], sys.exc_info()[1])[
+                0
+            ].strip()
+        )
 
 
 class replica_slave:
     def __init__(self, remoteargs, localargs):
         self.verbose = 0
         self.localargs = localargs
-        i = remoteargs.find(':')
-        if i<0:
+        i = remoteargs.find(":")
+        if i < 0:
             self.rdir = remoteargs
             self.local = 1
         else:
             self.rhost = remoteargs[:i]
-            self.rdir = remoteargs[i+1:]
-            j = self.rhost.find('@')
-            if j<0:
+            self.rdir = remoteargs[i + 1 :]
+            j = self.rhost.find("@")
+            if j < 0:
                 self.user = None
             else:
                 self.user = self.rhost[:j]
-                self.rhost = self.rhost[j+1:]
+                self.rhost = self.rhost[j + 1 :]
             self.local = 0
-            self.ssh = [ '/usr/bin/ssh' ]
+            self.ssh = ["/usr/bin/ssh"]
             if self.user:
-                self.ssh.extend( [ '-l', self.user ] )
+                self.ssh.extend(["-l", self.user])
             self.rpython = sys.executable
             self.ripath = mypath
 
     def main(self):
         if self.local:
-            cmd = [ sys.executable, os.path.join(mypath,'replica.py') ]
+            cmd = [sys.executable, os.path.join(mypath, "replica.py")]
         else:
             cmd = self.ssh[:]
-            cmd.extend ( [ self.rhost, self.rpython, os.path.join(self.ripath,"replica.py") ] )
-        for i in range(0,self.verbose):
-            cmd.append('-v')
-        for i in range(0,self.verbose,-1):
-            cmd.append('-q')
-        cmd.append('+')
+            cmd.extend(
+                [self.rhost, self.rpython, os.path.join(self.ripath, "replica.py")]
+            )
+        for i in range(0, self.verbose):
+            cmd.append("-v")
+        for i in range(0, self.verbose, -1):
+            cmd.append("-q")
+        cmd.append("+")
         cmd.append(self.rdir)
-        if self.verbose>=2:
+        if self.verbose >= 2:
             print(repr(cmd), file=sys.stderr)
         self.replica_main(cmd, self.localargs)
-        if self.verbose>=0:
-            print('Replica complete', file=sys.stderr)
+        if self.verbose >= 0:
+            print("Replica complete", file=sys.stderr)
 
     def replica_main(self, cmd, path):
         # resync the replica
@@ -115,14 +134,14 @@ class replica_slave:
         # Get a copy of the differences between the remote and
         # local storages in a local tar file.
         self.rpc(cmd)
-        if self.verbose>=1:
-            print('Flushing increment....', file=sys.stderr)
+        if self.verbose >= 1:
+            print("Flushing increment....", file=sys.stderr)
         self.fs.flush_replica()
         self.fs.close()
 
     def prep_replica(self):
-        if self.verbose>=1:
-            print('Preparing local storage....', file=sys.stderr)
+        if self.verbose >= 1:
+            print("Preparing local storage....", file=sys.stderr)
         # Bring up the filesystem
         self.fs = PosixFilesystem(self.path)
         # Start the filesystem flushing itself
@@ -132,52 +151,55 @@ class replica_slave:
         try:
             self.fs.engage(synchronous=1)
         except POSError:
-            raise ReplicaError('Can not engage replica storage')
+            raise ReplicaError("Can not engage replica storage")
         # synchronous mode engage means we know that the journal and
         # B directories are fully flushed at this point.
         self.config = self.fs.config
         self.filename_munge = self.fs.filename_munge
-        self.config.read(self.path+'/config/settings')
-        if self.config.get('storage','classname')!='Full':
-            raise ReplicaError('This is not a Full storage')
+        self.config.read(self.path + "/config/settings")
+        if self.config.get("storage", "classname") != "Full":
+            raise ReplicaError("This is not a Full storage")
 
-    def rpc(self,cmd):
+    def rpc(self, cmd):
         # Get a copy of the differences between the remote and local storages
         # in a local tar file.
-        if self.verbose>=1:
-            print('Fetching increment....', file=sys.stderr)
+        if self.verbose >= 1:
+            print("Fetching increment....", file=sys.stderr)
         request = self.get_request()
         p = pipeline()
-        tarname = os.path.join(self.path,'misc','.replica.incoming')
-        tarfd = os.open(tarname,os.O_RDWR|os.O_CREAT,0o640)
+        tarname = os.path.join(self.path, "misc", ".replica.incoming")
+        tarfd = os.open(tarname, os.O_RDWR | os.O_CREAT, 0o640)
         p.set_output(tarfd)
 
         def ssh():
-            os.execv(cmd[0],cmd)
+            os.execv(cmd[0], cmd)
 
         w = p.pipe_input()
-        p.run( ssh )
+        p.run(ssh)
 
-        os.write(w,request)
+        os.write(w, request)
         os.close(w)
 
         p.close()
 
         if not p.all_ok():
-            raise ReplicaError('Error from remote replica')
+            raise ReplicaError("Error from remote replica")
 
-        if self.verbose>=1:
+        if self.verbose >= 1:
             size = os.fstat(tarfd)[stat.ST_SIZE]
-            print('Increment size %s, syncing....' % (format_filesize(size),), file=sys.stderr)
+            print(
+                "Increment size %s, syncing...." % (format_filesize(size),),
+                file=sys.stderr,
+            )
 
         # sync stuff to make it all durable
         os.fsync(tarfd)
         os.close(tarfd)
-        self.fs.sync_directory('misc')
+        self.fs.sync_directory("misc")
 
         # Atomically commit this replica increment
-        self.fs.rename('misc/.replica.incoming','journal/replica.tar')
-        self.fs.sync_directory('journal')
+        self.fs.rename("misc/.replica.incoming", "journal/replica.tar")
+        self.fs.sync_directory("journal")
 
     def get_request(self):
         # Compute a string to send into stdin on our remote process to
@@ -185,17 +207,28 @@ class replica_slave:
         #
         # Our identity. This ensures we are not replicating from the wrong
         # storage - a common mistake if you have more than one
-        identity = open(os.path.join(self.path,'config','identity')).readline().strip()
+        identity = (
+            open(os.path.join(self.path, "config", "identity")).readline().strip()
+        )
         # The last transaction that is held here
-        current_tid = open(os.path.join(self.path,'A',self.filename_munge('x.serial'))).read()
+        current_tid = open(
+            os.path.join(self.path, "A", self.filename_munge("x.serial"))
+        ).read()
         # A checksum of that transaction. This ensures that our source and destination
         # are identical up to that point
-        if current_tid=='\x00'*8:
-            tdata = ''
+        if current_tid == "\x00" * 8:
+            tdata = ""
         else:
-            tdata = open(os.path.join(self.path,'A',self.filename_munge(Full._tid_filename(current_tid)))).read()
-        return 'replica request 0\n%s\n%s\n%s\n' % ( identity, binascii.b2a_hex(current_tid), binascii.b2a_hex(hashlib.md5(tdata).digest()) )
-
+            tdata = open(
+                os.path.join(
+                    self.path, "A", self.filename_munge(Full._tid_filename(current_tid))
+                )
+            ).read()
+        return "replica request 0\n%s\n%s\n%s\n" % (
+            identity,
+            binascii.b2a_hex(current_tid),
+            binascii.b2a_hex(hashlib.md5(tdata).digest()),
+        )
 
 
 class replica_master:
@@ -204,34 +237,45 @@ class replica_master:
         self.verbose = 0
 
     def main(self):
-        if not os.path.exists(os.path.join(self.path,'A')):
-            raise ReplicaError('%s is not a DirectoryStorage directory.' % self.path)
-        if sys.stdin.readline().strip()!='replica request 0':
+        if not os.path.exists(os.path.join(self.path, "A")):
+            raise ReplicaError("%s is not a DirectoryStorage directory." % self.path)
+        if sys.stdin.readline().strip() != "replica request 0":
             sys.exit(usage())
         identity1 = sys.stdin.readline().strip()
-        identity2 = open(os.path.join(self.path,'config','identity')).readline().strip()
-        if identity1!=identity2:
-            raise ReplicaError('different identity')
+        identity2 = (
+            open(os.path.join(self.path, "config", "identity")).readline().strip()
+        )
+        if identity1 != identity2:
+            raise ReplicaError("different identity")
         old_tid = binascii.a2b_hex(sys.stdin.readline().strip())
         thash1 = binascii.a2b_hex(sys.stdin.readline().strip())
         self.config = ConfigParser()
-        self.config.read(self.path+'/config/settings')
-        format = self.config.get('structure','format')
+        self.config.read(self.path + "/config/settings")
+        format = self.config.get("structure", "format")
         self.filename_munge = formats[format]
-        packed_tid = open(os.path.join(self.path,'A',self.filename_munge('x.packed'))).read()
-        if packed_tid>old_tid:
-            raise ReplicaError('storage has been packed since the last replica ( %s > %s )' %(tid2date(packed_tid),tid2date(old_tid)) )
+        packed_tid = open(
+            os.path.join(self.path, "A", self.filename_munge("x.packed"))
+        ).read()
+        if packed_tid > old_tid:
+            raise ReplicaError(
+                "storage has been packed since the last replica ( %s > %s )"
+                % (tid2date(packed_tid), tid2date(old_tid))
+            )
         try:
-            if old_tid=='\x00'*8:
-                tdata = ''
+            if old_tid == "\x00" * 8:
+                tdata = ""
             else:
-                tdata = open(os.path.join(self.path,'A',self.filename_munge(Full._tid_filename(old_tid)))).read()
+                tdata = open(
+                    os.path.join(
+                        self.path, "A", self.filename_munge(Full._tid_filename(old_tid))
+                    )
+                ).read()
         except EnvironmentError:
-            raise ReplicaError('reference transaction does not exist')
-        if hashlib.md5(tdata).digest()!=thash1:
-            raise ReplicaError('reference transaction differs')
+            raise ReplicaError("reference transaction does not exist")
+        if hashlib.md5(tdata).digest() != thash1:
+            raise ReplicaError("reference transaction differs")
 
-        s = snapshot(self.path, '-', verbose=self.verbose)
+        s = snapshot(self.path, "-", verbose=self.verbose)
         s.acquire()
         try:
             # The following section uses two child processes. The first is
@@ -243,38 +287,38 @@ class replica_master:
 
             def whatsnew():
                 os.chdir(self.path)
-                cmd = [ sys.executable,  mypath+'/whatsnew.py' ]
-                for i in range(0,self.verbose):
-                    cmd.append('-v')
-                for i in range(0,self.verbose,-1):
-                    cmd.append('-q')
+                cmd = [sys.executable, mypath + "/whatsnew.py"]
+                for i in range(0, self.verbose):
+                    cmd.append("-v")
+                for i in range(0, self.verbose, -1):
+                    cmd.append("-q")
                 cmd.append(oid2str(old_tid))
-                if self.verbose>=2:
+                if self.verbose >= 2:
                     print(repr(cmd), file=sys.stderr)
-                os.execv(cmd[0],cmd)
+                os.execv(cmd[0], cmd)
 
             def cpio():
                 os.chdir(self.path)
-                os.execlp('cpio',     'cpio', '--quiet', '-o', '-H', 'ustar' )
+                os.execlp("cpio", "cpio", "--quiet", "-o", "-H", "ustar")
 
             p.set_output(tf.fileno())
-            p.run(whatsnew,cpio)
+            p.run(whatsnew, cpio)
             p.close()
-            e1,e2 = p.codes
+            e1, e2 = p.codes
             if e1:
-                raise ReplicaError('error %d in whatsnew' % e1)
+                raise ReplicaError("error %d in whatsnew" % e1)
             if e2:
-                raise ReplicaError('error %d in cpio' % e2)
+                raise ReplicaError("error %d in cpio" % e2)
 
         finally:
             # release the snapshot quickly
             s.release()
         # Trickle the tar file back to the client
-        if self.verbose>=1:
-            print('Transferring increment....', file=sys.stderr)
-        tf.seek(0,0)
+        if self.verbose >= 1:
+            print("Transferring increment....", file=sys.stderr)
+        tf.seek(0, 0)
         while 1:
-            c = tf.read(1024*64)
+            c = tf.read(1024 * 64)
             if not c:
                 break
             sys.stdout.write(c)
@@ -309,7 +353,10 @@ options:
     Use specified command instead of /usr/bin/ssh for communication to the master.
     COMMAND may also include parameters, for example -e "/usr/bin/ssh -p 1234"
 
-""" % os.path.basename(sys.argv[0])
+""" % os.path.basename(
+        sys.argv[0]
+    )
 
-if __name__=='__main__':
+
+if __name__ == "__main__":
     main()

@@ -3,15 +3,21 @@
 # (http://codespeak.net/z3/)
 #
 
+import os
+import urllib.error
+import urllib.parse
+import urllib.request
+
 from docutils import core
-import os, urllib.request, urllib.error, urllib.parse
+
 
 class Error(Exception):
     pass
 
+
 class Website(object):
-    """A website consists of resources and pages.
-    """
+    """A website consists of resources and pages."""
+
     def __init__(self, website_path):
         self._website_path = website_path
         self._resource_infos = []
@@ -42,140 +48,155 @@ class Website(object):
         Releases are normal resources, but end up in a special release
         directory.
         """
-        directory = os.path.join(directory, 'release')
+        directory = os.path.join(directory, "release")
         self.registerResources(resources, directory)
-        
+
     def save(self):
-        """Save all pages and resources.
-        """    
+        """Save all pages and resources."""
         for info in self._infos:
             info.save()
+
 
 class Info(object):
     """Information describing what to do with a web page.
 
     i.e. how to layout it, where to place it when done.
     """
+
     def __init__(self, resource, layouter, destination_path, **kw):
         self._resource = resource
         self._destination_path = destination_path
         self._layouter = layouter
         self._kw = kw
-         
+
     def render(self):
         return self._resource.render(self._layouter, **self._kw)
 
     def save(self):
-        """Save this resource.
-        """
+        """Save this resource."""
         try:
             os.makedirs(os.path.dirname(self._destination_path))
         except os.error:
             pass
         data = self.render()
-        f = file(self._destination_path, 'w')
+        f = file(self._destination_path, "w")
         f.write(data)
         f.close()
 
+
 class BaseResource(object):
-    """Base class of all resources.
-    """
+    """Base class of all resources."""
+
     def __init__(self, name):
         self._name = name
-        
+
     def getName(self):
-        """Name of resource when written.
-        """
+        """Name of resource when written."""
         return self._name
-    
+
     def render(self, layouter, **kw):
         raise NotImplementedError
-    
+
+
 class BaseDataResource(BaseResource):
-    """A resource that gets its main data from a data source.
-    """
+    """A resource that gets its main data from a data source."""
+
     def __init__(self, data_source, name=None):
         super(BaseDataResource, self).__init__(name)
         if self._name is None:
             self._name = data_source.getName()
         self._data = data_source.getData()
-        
+
+
 class Resource(BaseDataResource):
-    """A resource that is just a file.
-    """    
+    """A resource that is just a file."""
+
     def render(self, layouter, **kw):
         return self._data
 
+
 class FileResource(Resource):
-    """Convenience way to create a Resource from file.
-    """
+    """Convenience way to create a Resource from file."""
+
     def __init__(self, path, name=None):
         super(FileResource, self).__init__(PathSource(path), name)
-        
+
+
 class BasePage(BaseDataResource):
-    """Base class of all pages.
-    """
+    """Base class of all pages."""
+
     def __init__(self, data_source, name=None):
         super(BasePage, self).__init__(data_source, name)
-        self._name = os.path.splitext(self._name)[0] + '.html'
-        
+        self._name = os.path.splitext(self._name)[0] + ".html"
+
     def getData(self):
-        """Returns a dictionary with data to use in the page.
-        """
+        """Returns a dictionary with data to use in the page."""
         raise NotImplementedError
-    
-    def render(self, layouter, **kw):        
+
+    def render(self, layouter, **kw):
         kw.update(self.getData())
         return layouter.render(**kw)
+
 
 class RstPage(BasePage):
     def getData(self):
         return html_parts(self._data, initial_header_level=2)
 
+
 class FileRstPage(RstPage):
-    """Convenience way to create a RstPage from file.
-    """
+    """Convenience way to create a RstPage from file."""
+
     def __init__(self, path, name=None):
         super(RstPage, self).__init__(PathSource(path), name)
-        
+
+
 class SimplePage(BasePage):
     def __init__(self, name):
-        self._name = name + '.html'
-        
+        self._name = name + ".html"
+
     def getData(self):
         return {}
-    
+
+
 class SimpleLayouter(object):
-    """Simple layouter which replaces {{foo}} in a template with values.
-    """
+    """Simple layouter which replaces {{foo}} in a template with values."""
+
     def __init__(self, template, **kw):
         self._template = template
         self._kw = kw
-        
+
     def render(self, **kw):
         kw.update(self._kw)
         template = self._template
         for key, value in list(kw.items()):
             if type(value) in (str, str):
-                template = template.replace('{{%s}}' % key, value)
+                template = template.replace("{{%s}}" % key, value)
             elif type(value) == type([]):
                 l = []
-                l.append('<ul>\n')
+                l.append("<ul>\n")
                 for name, url in value:
                     l.append('  <li><a href="%s">%s</a></li>\n' % (url, name))
-                l.append('</ul>\n')
-                template = template.replace('{{%s}}' % key, ''.join(l))
+                l.append("</ul>\n")
+                template = template.replace("{{%s}}" % key, "".join(l))
         return template
 
+
 class FileSimpleLayouter(SimpleLayouter):
-    """A layouter which loads its template from file.
-    """
+    """A layouter which loads its template from file."""
+
     def __init__(self, path, **kw):
         data = file(path).read()
         super(FileSimpleLayouter, self).__init__(data, **kw)
-        
-def html_parts(input_string, source_path=None, destination_path=None,
-               input_encoding='unicode', doctitle=1, initial_header_level=1):
+
+
+def html_parts(
+    input_string,
+    source_path=None,
+    destination_path=None,
+    input_encoding="unicode",
+    doctitle=1,
+    initial_header_level=1,
+):
     """
     Given an input string, returns a dictionary of HTML document parts.
 
@@ -199,36 +220,42 @@ def html_parts(input_string, source_path=None, destination_path=None,
     - `initial_header_level`: The initial level for header elements (e.g. 1
       for "<h1>").
     """
-    overrides = {'input_encoding': input_encoding,
-                 'doctitle_xform': doctitle,
-                 'initial_header_level': initial_header_level}
+    overrides = {
+        "input_encoding": input_encoding,
+        "doctitle_xform": doctitle,
+        "initial_header_level": initial_header_level,
+    }
     parts = core.publish_parts(
-        source=input_string, source_path=source_path,
+        source=input_string,
+        source_path=source_path,
         destination_path=destination_path,
-        writer_name='html', settings_overrides=overrides)
+        writer_name="html",
+        settings_overrides=overrides,
+    )
     return parts
 
 
 class PathSource(object):
     def __init__(self, path):
         self._path = path
-        
+
     def getName(self):
         return os.path.basename(self._path)
-    
+
     def getData(self):
         f = file(self._path)
         data = f.read()
         f.close()
         return data
 
+
 class UrlSource(object):
     def __init__(self, url):
         self._url = url
-        
-    def getName(self):            
-        i = self._url.rfind('/')
-        return self._url[i+1:]
+
+    def getName(self):
+        i = self._url.rfind("/")
+        return self._url[i + 1 :]
 
     def getData(self):
         try:
