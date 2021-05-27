@@ -72,7 +72,10 @@ class Full(BaseDirectoryStorage, ConflictResolvingStorage):
     def loadBefore(self, oid, tid):
         data, serial2 = self._load_object_file(oid)
 
+        following = None
+
         while serial2 >= tid:
+            following = serial2
             serials_plus_pickle = data[56:]
             previous_serial = serials_plus_pickle[:8]
             data, serial2 = self._load_object_file(oid, serial=previous_serial)
@@ -80,7 +83,7 @@ class Full(BaseDirectoryStorage, ConflictResolvingStorage):
         self._check_object_file(oid, serial2, data, self._md5_read)
         pickle = data[72:]
         serial = data[64:72]
-        return pickle, serial, tid
+        return pickle, serial, following
 
     def store(self, oid, serial, data, version, transaction):
         if self._is_read_only:
